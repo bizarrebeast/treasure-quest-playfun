@@ -92,7 +92,7 @@ async function initializeApp() {
 
     // Initialize Play.fun SDK
     // Game ID will be set after registration — use placeholder for now
-    initPlayFunSDK('PLAYFUN_GAME_ID_PLACEHOLDER')
+    initPlayFunSDK('352aad5d-b6fa-4ad7-9ccf-ab9da95d4867')
 
     // Set up audio context for mobile
     const canvas = game.canvas
