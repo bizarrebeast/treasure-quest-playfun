@@ -1,4 +1,4 @@
-import GameSettings from "../config/GameSettingsLoader"
+import GameSettings from "../config/GameSettings"
 import { Player } from "../objects/Player"
 import { Cat, CatColor } from "../objects/Cat"
 import { BaseBlu } from "../objects/BaseBlu"
@@ -23,6 +23,7 @@ import { GemShapeGenerator, GemStyle, GemCut } from "../utils/GemShapes"
 import { MenuOverlay } from "../ui/MenuOverlay"
 import { BackgroundManager } from "../systems/BackgroundManager"
 import { SharedAssetManager } from "../systems/SharedAssetManager"
+import { reportGameOver } from "../utils/RemixUtils"
 
 export class GameScene extends Phaser.Scene {
   private platforms!: Phaser.Physics.Arcade.StaticGroup
@@ -104,22 +105,23 @@ export class GameScene extends Phaser.Scene {
   private beastModeLoadingText?: Phaser.GameObjects.Text
   private beastModeLoadingTimer?: Phaser.Time.TimerEvent
   
-  // Game statistics tracking
-  private gameStats = {
-    treasureChestsOpened: 0,
+  // Game statistics tracking - DO NOT REINITIALIZE WITH =
+  // This must persist across scene restarts until game over
+  private gameStats!: {
+    treasureChestsOpened: number
     enemyKills: {
-      caterpillar: 0,
-      rollz: 0,
-      chomper: 0,
-      snail: 0,
-      bouncer: 0,
-      stalker: 0,
-      rex: 0,
-      blu: 0
-    },
-    totalEnemiesDefeated: 0,
-    highestFloor: 0,
-    livesLost: 0
+      caterpillar: number
+      rollz: number
+      chomper: number
+      snail: number
+      bouncer: number
+      stalker: number
+      rex: number
+      blu: number
+    }
+    totalEnemiesDefeated: number
+    highestFloor: number
+    livesLost: number
   }
   
   // Background management
@@ -158,31 +160,60 @@ export class GameScene extends Phaser.Scene {
   private preloadChapterText?: Phaser.GameObjects.Text
   private preloadLoadingText?: Phaser.GameObjects.Text
   private instantLoadingScreen?: Phaser.GameObjects.Image
+  private reopenMenuAfterInit: boolean = false
+  // private debugKillTracker?: Phaser.GameObjects.Text // Debug tracker disabled
 
-  // WARNING: DUPLICATE init() METHOD - DO NOT DELETE WITHOUT CHECKING WITH DYLAN FIRST
-  // There are two init() methods in this file (line ~158 and line ~621)
-  // This duplication may be intentional for specific loading/initialization behavior
   init(data?: any): void {
     // Store flag to reopen menu after scene is ready
     this.reopenMenuAfterInit = data?.reopenMenu || false
-    
+
+    // Get gameStats from registry (persists across scene restarts and deaths)
+    this.gameStats = this.game.registry.get('gameStats')
+
+    // Only initialize gameStats if it doesn't exist (first time playing)
+    // Do NOT reset on death (playerLives === 0) - we want to keep tracking!
+    if (!this.gameStats) {
+      console.log('🎮 Initializing fresh gameStats tracking (first time)')
+      this.gameStats = {
+        treasureChestsOpened: 0,
+        enemyKills: {
+          caterpillar: 0,
+          rollz: 0,
+          chomper: 0,
+          snail: 0,
+          bouncer: 0,
+          stalker: 0,
+          rex: 0,
+          blu: 0
+        },
+        totalEnemiesDefeated: 0,
+        highestFloor: 0,
+        livesLost: 0
+      }
+      // Save to registry for persistence
+      this.game.registry.set('gameStats', this.gameStats)
+    } else {
+      console.log('📊 Continuing with existing gameStats:', this.gameStats)
+    }
+
     // Check if this is a continue after death
     const isDeathRetry = this.game.registry.get('isDeathRetry') || false
     const playerLives = this.game.registry.get('playerLives') || 0
-    
+
     // Set flag to show loading screen ONLY if this is NOT a replay or death retry
     const isReplay = this.game.registry.get('isReplay') || false
     const skipLoadingScreen = isReplay || (isDeathRetry && playerLives > 0)
     this.showLoadingScreen = !skipLoadingScreen
-    
+
     console.log(`🎬 Loading screen decision: isReplay=${isReplay}, isDeathRetry=${isDeathRetry}, skip=${skipLoadingScreen}, SHOW=${this.showLoadingScreen}`)
-    
+
+    // Set dark purple background to match instructions background color
+    // This minimizes the visual jump during the brief preload phase
+    this.cameras.main.setBackgroundColor('#1a0033')
+
     // Initialize managers that need scene references
     this.levelManager = new LevelManager()
     this.backgroundManager = new BackgroundManager(this)
-    
-    // Set purple background immediately (matching theme)
-    this.cameras.main.setBackgroundColor(0x2e2348)
     
     // Check if we have a pre-generated loading screen
     const currentLevel = this.registry.get('currentLevel') || 1
@@ -584,6 +615,9 @@ export class GameScene extends Phaser.Scene {
     this.load.audio('powerup-collect', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/collect%20pendant%20or%20crystal%20ball-rEQiBqrl32yuqNts0U4A3Muol63Fxr.wav?eDiE')
     this.load.audio('treasure-chest-open', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/treasure%20chest%20opening%20sfx-qA8VU8UtwVC4fnaW67wfvM2IzTJRep.wav?WLuy')
     
+    // Menu sound
+    this.load.audio('menu-toggle', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/menu%20sound-uBdZpD8zUrdGkuqw7jw0j9339NP2wC.wav?rHPB')
+    
     // Player movement sounds
     this.load.audio('jump-1', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/player%20jumping%201%20sfx-Cfx219m2NwhVClkP67iebiwcV0HiF5.wav?GDjY')
     this.load.audio('jump-2', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/player%20jumping%202%20sfx-UU3Gj2quONoFPk7SO3OI3koGgiSRGY.wav?4Zrt')
@@ -599,7 +633,7 @@ export class GameScene extends Phaser.Scene {
     // Level/UI sounds
     this.load.audio('continue-button', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/level%20complete%20continue%20button%20sfx-tKmarJUBWs3rQJhPDsv2IYj5oc8p5j.wav?V3lH')
     this.load.audio('door-open', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/door%20open%20sfx-LqGIt2ZSLGjCz0lSbuC6F6yusdC97e.wav?hCxN')
-    this.load.audio('menu-toggle', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/menu%20sound-uBdZpD8zUrdGkuqw7jw0j9339NP2wC.wav?rHPB')
+    this.load.audio('menu-toggle', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/menu%20open%20and%20close-nUqXoXI4Du6a4mBgJmOcJZuJkGXAa2.wav?EOlm')
     
     // Player damage sounds
     this.load.audio('spike-hit', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/player%20hits%20spikes%20sfx-Pt2SxNCgCXtyIz2jiBS3AYiCvYrp8X.wav?IM9a')
@@ -648,65 +682,58 @@ export class GameScene extends Phaser.Scene {
   // WARNING: DUPLICATE init() METHOD #2 - DO NOT DELETE WITHOUT CHECKING WITH DYLAN FIRST
   // This is the second init() method (first one is around line ~158)
   // This duplication may be intentional for specific loading/initialization behavior
+  // RESTORED - This handles loading screen initialization
   init(data?: any): void {
-    // Store flag to reopen menu after scene is ready
+    // Store flag to reopen menu after scene is ready (duplicate from first init)
     this.reopenMenuAfterInit = data?.reopenMenu || false
-    
+
+    // ALSO initialize gameStats here to ensure it's always set
+    // Get gameStats from registry (persists across scene restarts and deaths)
+    this.gameStats = this.game.registry.get('gameStats')
+
+    // Only initialize gameStats if it doesn't exist (first time playing)
+    if (!this.gameStats) {
+      console.log('🎮 Initializing fresh gameStats tracking (from 2nd init)')
+      this.gameStats = {
+        treasureChestsOpened: 0,
+        enemyKills: {
+          caterpillar: 0,
+          rollz: 0,
+          chomper: 0,
+          snail: 0,
+          bouncer: 0,
+          stalker: 0,
+          rex: 0,
+          blu: 0
+        },
+        totalEnemiesDefeated: 0,
+        highestFloor: 0,
+        livesLost: 0
+      }
+      // Save to registry for persistence
+      this.game.registry.set('gameStats', this.gameStats)
+    }
+
     // Check if this is a continue after death
     const isDeathRetry = this.game.registry.get('isDeathRetry') || false
     const playerLives = this.game.registry.get('playerLives') || 0
-    
+
     // Set flag to show loading screen ONLY if this is NOT a replay or death retry
     // On replay/continue, we skip the loading screen since assets are already loaded
     const isReplay = this.game.registry.get('isReplay') || false
     const skipLoadingScreen = isReplay || (isDeathRetry && playerLives > 0)
     this.showLoadingScreen = !skipLoadingScreen
-    
+
     console.log(`🎬 Loading screen decision (2nd init): isReplay=${isReplay}, isDeathRetry=${isDeathRetry}, skip=${skipLoadingScreen}, SHOW=${this.showLoadingScreen}`)
-    
+
     // Set dark purple background to match instructions background color
     // This minimizes the visual jump during the brief preload phase
     this.cameras.main.setBackgroundColor('#1a0033')
   }
 
-  private reopenMenuAfterInit: boolean = false
-
   create(): void {
     console.log('🎮 GameScene.create() started at', performance.now())
     console.log('📊 showLoadingScreen flag:', this.showLoadingScreen)
-    
-    // Show wallet button now that game has started (after splash)
-    const platform = this.game.registry.get('platform') || (window as any).platform || (window as any).gamePlatform;
-    if (platform && platform.showWalletButton) {
-      platform.showWalletButton();
-    }
-    
-    // Debug logging for alignment issues
-    console.log('🎯 Scene Dimensions:', {
-      game: {
-        width: this.game.config.width,
-        height: this.game.config.height,
-        resolution: this.game.config.resolution
-      },
-      camera: {
-        width: this.cameras.main.width,
-        height: this.cameras.main.height,
-        x: this.cameras.main.x,
-        y: this.cameras.main.y,
-        scrollX: this.cameras.main.scrollX,
-        scrollY: this.cameras.main.scrollY
-      },
-      physics: {
-        worldBounds: this.physics.world.bounds,
-        gravity: this.physics.world.gravity
-      },
-      scale: {
-        gameSize: this.scale.gameSize,
-        parentSize: this.scale.parentSize,
-        displaySize: this.scale.displaySize,
-        mode: this.scale.scaleMode
-      }
-    })
     
     // Create loading screen if we're coming from instructions
     if (this.showLoadingScreen) {
@@ -909,19 +936,15 @@ export class GameScene extends Phaser.Scene {
   }
   
   private getChapterSplashUrl(level: number): string {
-    // Check if this is dgen1 version
-    const isDgen1 = this.registry.get('isDgen1') || window.location.port === '3001';
-    
-    // DGEN1 ONLY - Always use 720x720 chapter splash URLs
-    const dgen1SplashUrls: { [key: number]: string } = {
-      1: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/crystal%20caverns%20splash%20page%20dgen1-fOxjnn8s5iQTzCwVP6HTwo2oZnoWlN.png?V8Du',
-      11: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/volcano%20crystal%20caverns%20splash%20page%20dgen1-MoVRItepiBcZZdhmpb1d5ullyQ725t.png?8mEz',
-      21: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/steampunk%20crystal%20caverns%20splash%20page%20dgen1-B4jgMlUeWbOa7kvIZfra56G4UiUFoY.png?lJqO',
-      31: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/electrified%20crystal%20caverns%20splash%20page%20dgen1-RJXfreqjj1XpJaMYUsYJBansc4BTAJ.png?B3oR',
-      41: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/galactic%20crystal%20caverns%20splash%20page%20dgen1-zSJaaqpe1StXM8hf8IoYDYjx4vIsAz.png?Az4J',
-      51: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/beast%20mode%20crystal%20caverns%20splash%20page%20dgen1-6RPxHcIi1lHMpFEHGCwglRqzwKdNjW.png?Riu8'
+    const splashUrls: { [key: number]: string } = {
+      1: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/Crystal%20Cavern%20Chapter%20marker-xVVl4RJLl7pqY1teeQdZ9YR8qRbIbf.png',
+      11: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/Volcanic%20Crystal%20Cavern%20Chapter%20marker-DrODhcdT2pkFF5SP0zLVzzpmHeZwBl.png',
+      21: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/Steampunk%20Crystal%20Cavern%20Chapter%20marker-Oerxv49ruukEeuSe6Dz9Epj2apX18R.png',
+      31: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/Electrified%20Crystal%20Cavern%20Chapter%20marker-GstidG6WUl0ZXoFwC2l5HOqWCrXgaA.png',
+      41: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/Galatic%20Crystal%20Cavern%20Chapter%20marker-HTsVFy9CSXYas98BckhvpCBkEV4AwP.png',
+      51: 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/Beast%20Mode%20splash%20page-hnSUzR7voB81jfSXp0WpSwdDWEm4LD.png'
     }
-    return dgen1SplashUrls[level] || ''
+    return splashUrls[level] || ''
   }
   
   // Method no longer needed - moved to init()
@@ -976,10 +999,10 @@ export class GameScene extends Phaser.Scene {
   private displayChapterSplash(level: number, onComplete: () => void): void {
     const splashKey = `chapter-${level}`
     
-    // Show the chapter splash image IMMEDIATELY at full opacity
+    // Show the chapter splash image aligned to TOP of screen (bottom gets cut off)
     const splashImage = this.add.image(
       this.cameras.main.width / 2,
-      this.cameras.main.height / 2,
+      0,  // Align to top of screen
       splashKey
     )
     console.log(`📷 Splash image created: ${splashKey}`)
@@ -989,6 +1012,7 @@ export class GameScene extends Phaser.Scene {
     const scaleY = this.cameras.main.height / splashImage.height
     const scale = Math.max(scaleX, scaleY)
     splashImage.setScale(scale)
+    splashImage.setOrigin(0.5, 0)  // Set origin to top-center instead of center-center
     splashImage.setDepth(10001)
     splashImage.setScrollFactor(0)
     splashImage.alpha = 1 // Start at full opacity - no fade in needed
@@ -1052,8 +1076,7 @@ export class GameScene extends Phaser.Scene {
     // Sync level manager with registry
     this.levelManager.setCurrentLevel(currentLevelFromRegistry)
     
-    // Clear any cached level from localStorage
-    localStorage.removeItem('treasureQuest_currentLevel')
+    // No longer using localStorage for sandbox compatibility
     
     // Reset game state
     this.isGameOver = false
@@ -1196,8 +1219,7 @@ export class GameScene extends Phaser.Scene {
     // Enable multi-touch support
     this.input.addPointer(2) // Allow up to 3 pointers total (default 1 + 2 more)
     
-    // Setup Farcade SDK event handlers
-    this.setupFarcadeEventHandlers()
+    // Play.fun: no SDK event handlers needed
     
     // Game state is already initialized in initializeGameState() called earlier
     
@@ -1267,20 +1289,14 @@ export class GameScene extends Phaser.Scene {
     // Position spawn at fourth floor tile from the left (tile 3, 0-indexed)
     const tileSize = GameSettings.game.tileSize
     const spawnX = (3.5 * tileSize) // Fourth tile center (tile 3)
-    // Calculate spawn position based on actual canvas height
-    const groundFloorY = GameSettings.canvas.height - GameSettings.game.tileSize // Ground at Y=688 for 720px
-    // Match the exact position from intro animation
-    // Player physics body: 18x49 with offset (15, 12)
-    // We want physics body bottom at groundFloorY (688), so:
-    // y + 29 = 688, therefore y = 659
-    const spawnY = groundFloorY - 29  // This matches the intro animation end position
-    
-    console.log('👤 Player Spawn Calculation:', {
-      canvasHeight: GameSettings.canvas.height,
-      groundFloorY: groundFloorY,
-      spawnY: spawnY,
-      spawnX: spawnX
-    })
+    // Calculate spawn position dynamically based on actual canvas height
+    // Ground floor platform is at bottom of screen
+    const platformY = GameSettings.canvas.height - tileSize/2  // Platform center
+    const platformTop = platformY - tileSize/2  // Platform top surface
+    // Player sprite center should be positioned so physics body bottom is at platform top
+    // With physics body offset, body extends from sprite center + 2 to sprite center + 32
+    // So to have physics body bottom at platformTop, sprite center should be at platformTop - 32
+    const spawnY = platformTop - 32  // Position player so physics body sits on platform
     
     
     this.player = new Player(
@@ -1307,8 +1323,7 @@ export class GameScene extends Phaser.Scene {
       this.changePlayerTexture('playerIdleEye1')
       this.showStartBanner()
       
-      // Notify Farcade SDK that game is ready
-      this.notifyFarcadeGameReady()
+      // Game is ready
     } else {
       // New level - show intro animation
       // New level - showing intro animation (replaced console.log)
@@ -1392,7 +1407,7 @@ export class GameScene extends Phaser.Scene {
         // Process callback - return true to collide, false to pass through
         const spikeObj = spike as Phaser.GameObjects.Rectangle
         const isFloorSpike = spikeObj.getData('isFloorSpike')
-        // Only collide with floor spikes (pink spikes), pass through ceiling spikes
+        // Only collide with floor spikes, pass through ceiling spikes
         return isFloorSpike === true
       },
       this
@@ -1402,7 +1417,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.stalkerCats, this.platforms)
     // Stalker cats also only collide with floor spikes, not ceiling spikes
     this.physics.add.collider(
-      this.stalkerCats, 
+      this.stalkerCats,
       this.spikes,
       undefined,
       (cat, spike) => {
@@ -1410,6 +1425,40 @@ export class GameScene extends Phaser.Scene {
         const isFloorSpike = spikeObj.getData('isFloorSpike')
         return isFloorSpike === true
       },
+      this
+    )
+
+    // Add enemy-to-enemy OVERLAP detection (not collision) to make them change direction
+    // This prevents clustering without causing them to get stuck
+    this.physics.add.overlap(
+      this.cats,
+      this.cats,
+      (enemy1, enemy2) => this.handleEnemyOverlap(enemy1, enemy2),
+      undefined,
+      this
+    )
+
+    this.physics.add.overlap(
+      this.beetles,
+      this.beetles,
+      (enemy1, enemy2) => this.handleEnemyOverlap(enemy1, enemy2),
+      undefined,
+      this
+    )
+
+    this.physics.add.overlap(
+      this.cats,
+      this.beetles,
+      (enemy1, enemy2) => this.handleEnemyOverlap(enemy1, enemy2),
+      undefined,
+      this
+    )
+
+    this.physics.add.overlap(
+      this.rexEnemies,
+      this.rexEnemies,
+      (enemy1, enemy2) => this.handleEnemyOverlap(enemy1, enemy2),
+      undefined,
       this
     )
     
@@ -1549,15 +1598,8 @@ export class GameScene extends Phaser.Scene {
     
     // Set up camera to follow player
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1)
-    // Adjust camera offset for dgen1's square format
-    const isDgen1 = this.game.registry.get('isDgen1') || false
-    if (isDgen1) {
-      // For 720x720, center the camera better with less vertical offset
-      this.cameras.main.followOffset.set(0, 50)
-    } else {
-      // Keep camera centered horizontally, only follow vertically
-      this.cameras.main.followOffset.set(0, 100)
-    }
+    // Keep camera centered horizontally, only follow vertically
+    this.cameras.main.followOffset.set(0, 100)
     
     // Create visibility/vignette system
     this.createVisibilitySystem()
@@ -1568,7 +1610,7 @@ export class GameScene extends Phaser.Scene {
     const screenWidth = this.cameras.main.width
     
     // First, create the image that will fill the background (zoomed in)
-    const hudBgImage = this.add.image(screenWidth / 2, 10 + 48 + 4, 'hud-bg-200')  // Changed from 40px to 10px from top
+    const hudBgImage = this.add.image(screenWidth / 2, 40 + 48 + 4, 'hud-bg-200')  // Shifted down 4px (was 5px)
     // Scale up the image by 1.6x to zoom in and crop edges
     hudBgImage.setDisplaySize((screenWidth - 16) * 1.6, 96 * 1.6)  // 60% larger to zoom in
     hudBgImage.setOrigin(0.5, 0.5)  // Keep centered
@@ -1578,7 +1620,7 @@ export class GameScene extends Phaser.Scene {
     // Create a mask for the rounded rectangle shape
     const maskGraphics = this.add.graphics()
     maskGraphics.fillStyle(0xffffff)
-    maskGraphics.fillRoundedRect(8, 10, screenWidth - 16, 96, 12)
+    maskGraphics.fillRoundedRect(8, 40, screenWidth - 16, 96, 12)
     maskGraphics.setScrollFactor(0)
     
     // Apply the mask to clip the image to the rounded rectangle shape
@@ -1588,18 +1630,18 @@ export class GameScene extends Phaser.Scene {
     // Now create the border on top
     const hudBorder = this.add.graphics()
     hudBorder.lineStyle(2, 0x7b1fa2, 1.0) // Slightly lighter purple border
-    hudBorder.strokeRoundedRect(8, 10, screenWidth - 16, 96, 12) // Changed from 40px to 10px
+    hudBorder.strokeRoundedRect(8, 40, screenWidth - 16, 96, 12) // Just the border stroke
     hudBorder.setDepth(99)
     hudBorder.setScrollFactor(0)
     
     // LEFT SIDE: Lives, Crystals, Level
     // Lives display with heart crystal icon (left side, row 1)
-    this.livesIcon = this.add.image(30, 35, 'heart-crystal')  // Shifted up 30px (was 65)
+    this.livesIcon = this.add.image(30, 65, 'heart-crystal')
     this.livesIcon.setDisplaySize(16, 16)
     this.livesIcon.setDepth(100)
     this.livesIcon.setScrollFactor(0)
     
-    this.livesText = this.add.text(45, 35, 'x3', {  // Shifted up 30px (was 65)
+    this.livesText = this.add.text(45, 65, 'x3', {
       fontSize: '14px',
       color: '#ff69b4',  // Pink color to match heart crystal theme
       fontFamily: '"Press Start 2P", system-ui',
@@ -1640,12 +1682,12 @@ export class GameScene extends Phaser.Scene {
     this.comboText.setScrollFactor(0)
     
     // Crystal counter with new crystal HUD icon (left side, row 2)
-    const crystalIcon = this.add.image(30, 58, 'crystal-hud-icon')  // Shifted up 30px (was 88)
+    const crystalIcon = this.add.image(30, 88, 'crystal-hud-icon')
     crystalIcon.setDisplaySize(16, 16)
     crystalIcon.setDepth(100)
     crystalIcon.setScrollFactor(0)
     
-    this.coinCounterText = this.add.text(45, 58, '0/150', {  // Shifted up 30px (was 88)
+    this.coinCounterText = this.add.text(45, 88, '0/150', {
       fontSize: '14px',
       color: '#ffd700',  // Gold color for crystals
       fontFamily: '"Press Start 2P", system-ui',
@@ -1663,7 +1705,7 @@ export class GameScene extends Phaser.Scene {
     this.coinCounterText.setScrollFactor(0)
     
     // Level counter with new door HUD icon (left side, row 3)
-    const doorIcon = this.add.image(30, 81, 'door-hud-icon')  // Shifted up 30px (was 111)
+    const doorIcon = this.add.image(30, 111, 'door-hud-icon')
     doorIcon.setDisplaySize(16, 16)
     doorIcon.setDepth(100)
     doorIcon.setScrollFactor(0)
@@ -1674,7 +1716,7 @@ export class GameScene extends Phaser.Scene {
                              levelForHUD >= 51 ? `${levelForHUD}` : 
                              `${levelForHUD}`
     
-    this.levelText = this.add.text(45, 81, levelDisplayText, {  // Shifted up 30px (was 111)
+    this.levelText = this.add.text(45, 111, levelDisplayText, {
       fontSize: '14px',
       color: '#9acf07',  // Same green as hamburger menu
       fontFamily: '"Press Start 2P", system-ui',
@@ -1690,10 +1732,11 @@ export class GameScene extends Phaser.Scene {
       }
     }).setOrigin(0, 0.5).setDepth(100)
     this.levelText.setScrollFactor(0)
+
     
     // CENTER: Score and Invincibility Timer
     // Score display (center, top)
-    this.scoreText = this.add.text(screenWidth / 2, 25, '0', {  // Shifted up 30px (was 55)
+    this.scoreText = this.add.text(screenWidth / 2, 55, '0', {
       fontSize: '19px',
       color: '#ffd700',  // Gold color
       fontFamily: '"Press Start 2P", system-ui',
@@ -1712,7 +1755,7 @@ export class GameScene extends Phaser.Scene {
     this.comboText.setScrollFactor(0)
     
     // Timer container - all 4 timers centered as a group under score
-    const timerY = 75 // Shifted up 30px (was 105)
+    const timerY = 105 // 50px below score
     const timerSpacing = 45 // Space between timers (reduced for 4 timers)
     const totalWidth = timerSpacing * 3 // 3 gaps between 4 timers
     const startX = screenWidth / 2 - totalWidth / 2
@@ -1769,7 +1812,7 @@ export class GameScene extends Phaser.Scene {
     this.cursedTealOrbTimerMask.setScrollFactor(0)
     
     // RIGHT SIDE: Hamburger menu
-    this.hamburgerMenuButton = this.add.text(screenWidth - 30, 48, '☰', {  // Shifted up 30px (was 78)
+    this.hamburgerMenuButton = this.add.text(screenWidth - 30, 78, '☰', {  // Moved up 10px from 88 to 78
       fontSize: '42px',  // Increased by 10px from 32px
       color: '#9acf07',  // Bright green color
       fontFamily: '"Press Start 2P", system-ui',
@@ -1790,7 +1833,7 @@ export class GameScene extends Phaser.Scene {
     this.updateLivesDisplay()
     this.updateCoinCounterDisplay()
     this.updateScoreDisplay() // Show correct total score from the start
-    
+
     // Create touch controls for mobile
     this.touchControls = new TouchControls(this)
     
@@ -1808,20 +1851,6 @@ export class GameScene extends Phaser.Scene {
         console.log('🧪 Switching to TestScene...')
         this.scene.start('TestScene')
       })
-      
-      // Add debug gridlines for alignment testing
-      this.createDebugGridlines()
-    }
-    
-    // Ensure platform is available in registry before creating menu
-    if (!this.registry.get('platform') && !this.game.registry.get('platform')) {
-      // Check if platform exists in window
-      if ((window as any).platform) {
-        this.game.registry.set('platform', (window as any).platform);
-        console.log('🎮 Platform copied from window to registry');
-      } else {
-        console.warn('⚠️ Platform not found anywhere when creating menu');
-      }
     }
     
     // Create menu overlay (after HUD is created)
@@ -2357,8 +2386,7 @@ export class GameScene extends Phaser.Scene {
   private createTestLevel(): void {
     const tileSize = GameSettings.game.tileSize
     const floorWidth = GameSettings.game.floorWidth
-    // Use custom floor spacing for dgen1, or default calculation
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5) // Space between floors
+    const floorSpacing = tileSize * 5 // Space between floors (increased for better vertical spacing)
     
     // Get the required floor count for this level
     const levelConfig = this.levelManager.getLevelConfig(this.levelManager.getCurrentLevel())
@@ -2788,20 +2816,6 @@ export class GameScene extends Phaser.Scene {
     const ladderHeight = bottomY - topY + bottomExtension + topExtension
     const ladderY = (bottomY + bottomExtension + topY - topExtension) / 2
     
-    // Debug log for ladder positioning
-    const isDgen1 = this.game.registry.get('isDgen1') || false
-    if (isDgen1) {
-      console.log('🪜 Ladder created:', {
-        x: Math.round(x),
-        bottomY: Math.round(bottomY),
-        topY: Math.round(topY),
-        ladderY: Math.round(ladderY),
-        ladderHeight: Math.round(ladderHeight),
-        isGroundFloor,
-        canvasHeight: GameSettings.canvas.height
-      })
-    }
-    
     // Create the invisible ladder hitbox
     const ladder = this.add.rectangle(
       x + tileSize/2,
@@ -2898,7 +2912,7 @@ export class GameScene extends Phaser.Scene {
 
   private createCeilingSpikes(): void {
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     const levelConfig = this.levelManager.getLevelConfig(this.levelManager.getCurrentLevel())
     
     // Skip ceiling spikes entirely for bonus levels
@@ -3022,7 +3036,7 @@ export class GameScene extends Phaser.Scene {
     // Get ladder positions from stored ladder data
     const positions: number[] = []
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     
     this.ladders.children.entries.forEach(ladder => {
       const ladderObj = ladder as Phaser.GameObjects.Rectangle
@@ -3051,7 +3065,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     const floorWidth = GameSettings.game.floorWidth
     
     // Using difficulty-based enemy spawning system (replaced console.log)
@@ -3560,7 +3574,7 @@ export class GameScene extends Phaser.Scene {
   private createTemporaryFloorGrid(): void {
     // Creating temporary floor grid (replaced console.log)
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     const canvasWidth = GameSettings.canvas.width
     
     // Create graphics object for drawing grid lines
@@ -3605,7 +3619,7 @@ export class GameScene extends Phaser.Scene {
     }
     
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     const floorWidth = GameSettings.game.floorWidth
     
     // Add stalker cats starting from floor 2, up to second-to-last floor (avoid door floor)
@@ -3716,7 +3730,7 @@ export class GameScene extends Phaser.Scene {
   
   private createAllCollectibles(): void {
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     
     // Get allowed collectible types for current level
     const levelConfig = this.levelManager.getLevelConfig(this.levelManager.getCurrentLevel())
@@ -4004,7 +4018,7 @@ export class GameScene extends Phaser.Scene {
 
   private createBonusLevelChests(): void {
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     
     // Place 2 treasure chests on floors 2 and 3 of the bonus level
     const chestFloors = [2, 3]
@@ -4050,7 +4064,7 @@ export class GameScene extends Phaser.Scene {
   
   private createBonusLevelCollectibles(): void {
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     
     // Creating collectibles for bonus level floors
     
@@ -4147,7 +4161,7 @@ export class GameScene extends Phaser.Scene {
 
   private createBonusLevelFreeLife(): void {
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     
     // Place guaranteed free life on floor 3 (middle floor) for easier access
     const targetFloor = 3 // Middle floor of 5-floor bonus level
@@ -4196,7 +4210,7 @@ export class GameScene extends Phaser.Scene {
 
   private createLevel10TestingCollectibles(): void {
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     
     // Place invincibility pendants on ALL floors for easy testing
     // Use all available floors from the layout
@@ -4603,10 +4617,8 @@ export class GameScene extends Phaser.Scene {
       console.log('🔮 Crystal Ball removed from array, remaining:', this.crystalBalls.length)
     }
     
-    // Haptic feedback if available
-    if (window.FarcadeSDK?.singlePlayer?.actions?.hapticFeedback) {
-      window.FarcadeSDK.singlePlayer.actions.hapticFeedback()
-    }
+    // Haptic feedback
+    this.triggerFarcadeHapticFeedback()
   }
   
   private handleCursedOrbCollection(cursedOrb: CursedOrb): void {
@@ -4636,10 +4648,8 @@ export class GameScene extends Phaser.Scene {
       this.cursedOrbs.splice(index, 1)
     }
     
-    // Haptic feedback if available
-    if (window.FarcadeSDK?.singlePlayer?.actions?.hapticFeedback) {
-      window.FarcadeSDK.singlePlayer.actions.hapticFeedback()
-    }
+    // Haptic feedback
+    this.triggerFarcadeHapticFeedback()
   }
   
   private handleCursedTealOrbCollection(cursedTealOrb: CursedOrb): void {
@@ -4669,10 +4679,8 @@ export class GameScene extends Phaser.Scene {
       this.cursedTealOrbs.splice(index, 1)
     }
     
-    // Haptic feedback if available
-    if (window.FarcadeSDK?.singlePlayer?.actions?.hapticFeedback) {
-      window.FarcadeSDK.singlePlayer.actions.hapticFeedback()
-    }
+    // Haptic feedback
+    this.triggerFarcadeHapticFeedback()
   }
   
   // Commented out for later use
@@ -4792,7 +4800,16 @@ export class GameScene extends Phaser.Scene {
       undefined,
       this
     )
-    
+
+    // Add collision with Rex enemies (was missing!)
+    this.physics.add.overlap(
+      projectile,
+      this.rexEnemies,
+      (proj, enemy) => this.handleProjectileEnemyCollision(proj as CrystalBallProjectile, enemy),
+      undefined,
+      this
+    )
+
     // Add collision with platforms and spikes (for bouncing)
     this.physics.add.collider(projectile, this.platforms)
     this.physics.add.collider(projectile, this.spikes)
@@ -4816,17 +4833,31 @@ export class GameScene extends Phaser.Scene {
   
   private handleProjectileEnemyCollision(projectile: CrystalBallProjectile, enemy: any): void {
     console.log('💥 Crystal Ball projectile hit enemy!')
-    
+
     // Play crystal ball hit enemy sound
     this.playSoundEffect('crystal-ball-hit-enemy', 0.5)
-    
+
+    // Track enemy kill for stats BEFORE destroying the enemy
+    if (enemy) {
+      const enemyName = this.getEnemyTypeName(enemy)
+      if (this.gameStats && enemyName !== 'unknown' && enemyName in this.gameStats.enemyKills) {
+        this.gameStats.enemyKills[enemyName as keyof typeof this.gameStats.enemyKills]++
+        this.gameStats.totalEnemiesDefeated++
+        this.game.registry.set('gameStats', this.gameStats)  // Save to registry
+        console.log(`✅ Crystal ball kill tracked: ${enemyName} | Total ${enemyName}: ${this.gameStats.enemyKills[enemyName as keyof typeof this.gameStats.enemyKills]} | Total enemies: ${this.gameStats.totalEnemiesDefeated}`)
+        // this.updateDebugKillTracker() // Debug tracker disabled
+      } else {
+        console.error(`❌ Crystal ball kill NOT tracked! Enemy type: ${enemyName}`)
+      }
+    }
+
     // Simple enemy defeat animation without portal effect
     if (enemy && enemy.body) {
       enemy.body.enable = false // Disable physics during animation
-      
+
       // Create a simple sparkle effect instead of portal
       this.createCrystalBallDefeatEffect(enemy.x, enemy.y)
-      
+
       // Animate enemy shrinking and fading
       this.tweens.add({
         targets: enemy,
@@ -4845,12 +4876,12 @@ export class GameScene extends Phaser.Scene {
         }
       })
     }
-    
+
     // Award points
     const basePoints = enemy.getPointValue ? enemy.getPointValue() : 100
     this.score += basePoints
     this.updateScoreDisplay()
-    
+
     // Create score popup
     this.showPointPopup(enemy.x, enemy.y - 20, basePoints)
     
@@ -4867,11 +4898,9 @@ export class GameScene extends Phaser.Scene {
     }
     
     // Haptic feedback
-    if (window.FarcadeSDK?.singlePlayer?.actions?.hapticFeedback) {
-      window.FarcadeSDK.singlePlayer.actions.hapticFeedback()
-    }
+    this.triggerFarcadeHapticFeedback()
   }
-  
+
   updateCrystalBallTimer(timeRemaining: number, maxTime: number): void {
     // Keep timer always visible (don't hide when expired)
     this.crystalBallTimerImage.setVisible(true)
@@ -5261,6 +5290,87 @@ export class GameScene extends Phaser.Scene {
     return !this.player.getIsClimbing()
   }
   
+  private handleEnemyOverlap(
+    enemy1: Phaser.Types.Physics.Arcade.GameObjectWithBody,
+    enemy2: Phaser.Types.Physics.Arcade.GameObjectWithBody
+  ): void {
+    // Only process if both enemies have bodies and are active
+    if (!enemy1 || !enemy2 || !enemy1.body || !enemy2.body) return
+
+    // Skip if enemies are being destroyed
+    const enemy1Data = (enemy1 as any)
+    const enemy2Data = (enemy2 as any)
+    if (enemy1Data.isSquished || enemy2Data.isSquished) return
+
+    const body1 = enemy1.body as Phaser.Physics.Arcade.Body
+    const body2 = enemy2.body as Phaser.Physics.Arcade.Body
+
+    // Add cooldown to prevent rapid direction changes
+    const now = Date.now()
+    const cooldownTime = 1000 // 1 second cooldown
+
+    // Check if either enemy is in cooldown
+    const enemy1InCooldown = enemy1Data.lastSeparation && (now - enemy1Data.lastSeparation < cooldownTime)
+    const enemy2InCooldown = enemy2Data.lastSeparation && (now - enemy2Data.lastSeparation < cooldownTime)
+
+    if (enemy1InCooldown || enemy2InCooldown) return
+
+    // Calculate center distance
+    const distanceX = Math.abs(body1.center.x - body2.center.x)
+    const combinedHalfWidth = (body1.width + body2.width) / 2
+
+    // Only separate if overlapping significantly (80% or more)
+    if (distanceX < combinedHalfWidth * 0.8) {
+      // Mark separation time
+      enemy1Data.lastSeparation = now
+      enemy2Data.lastSeparation = now
+
+      // Determine which enemy should go which direction based on position
+      const enemy1GoesLeft = body1.center.x < body2.center.x
+
+      // Set directions opposite to each other
+      if (enemy1Data.direction !== undefined) {
+        enemy1Data.direction = enemy1GoesLeft ? -1 : 1
+      }
+      if (enemy2Data.direction !== undefined) {
+        enemy2Data.direction = enemy1GoesLeft ? 1 : -1
+      }
+
+      // Apply slight speed boost temporarily to help separation
+      const speedBoost = 1.2
+
+      // Update velocities with boost
+      if (enemy1.constructor.name === 'Cat' && enemy1Data.moveSpeed) {
+        body1.setVelocityX(enemy1Data.moveSpeed * enemy1Data.direction * speedBoost)
+      } else if (enemy1.constructor.name === 'Beetle' && enemy1Data.moveSpeed) {
+        body1.setVelocityX(enemy1Data.moveSpeed * enemy1Data.direction * speedBoost)
+      } else if (enemy1.constructor.name === 'Rex' && enemy1Data.moveSpeed) {
+        body1.setVelocityX(enemy1Data.moveSpeed * enemy1Data.direction * speedBoost)
+      }
+
+      if (enemy2.constructor.name === 'Cat' && enemy2Data.moveSpeed) {
+        body2.setVelocityX(enemy2Data.moveSpeed * enemy2Data.direction * speedBoost)
+      } else if (enemy2.constructor.name === 'Beetle' && enemy2Data.moveSpeed) {
+        body2.setVelocityX(enemy2Data.moveSpeed * enemy2Data.direction * speedBoost)
+      } else if (enemy2.constructor.name === 'Rex' && enemy2Data.moveSpeed) {
+        body2.setVelocityX(enemy2Data.moveSpeed * enemy2Data.direction * speedBoost)
+      }
+
+      // Remove speed boost after a short time
+      this.time.delayedCall(300, () => {
+        // Reset to normal speed
+        if (enemy1 && enemy1.body && enemy1Data.moveSpeed && enemy1Data.direction !== undefined) {
+          const b1 = enemy1.body as Phaser.Physics.Arcade.Body
+          b1.setVelocityX(enemy1Data.moveSpeed * enemy1Data.direction)
+        }
+        if (enemy2 && enemy2.body && enemy2Data.moveSpeed && enemy2Data.direction !== undefined) {
+          const b2 = enemy2.body as Phaser.Physics.Arcade.Body
+          b2.setVelocityX(enemy2Data.moveSpeed * enemy2Data.direction)
+        }
+      })
+    }
+  }
+
   private handlePlayerCatInteraction(
     player: Phaser.Types.Physics.Arcade.GameObjectWithBody,
     cat: Phaser.Types.Physics.Arcade.GameObjectWithBody
@@ -5312,8 +5422,12 @@ export class GameScene extends Phaser.Scene {
       this.showPointPopup(baseBluObj.x, baseBluObj.y - 20, points)
       
       // Track BaseBlu kill for stats
-      this.gameStats.enemyKills.blu++
-      this.gameStats.totalEnemiesDefeated++
+      if (this.gameStats) {
+        this.gameStats.enemyKills.blu++
+        this.gameStats.totalEnemiesDefeated++
+        this.game.registry.set('gameStats', this.gameStats)  // Save to registry
+        // this.updateDebugKillTracker() // Debug tracker disabled
+      }
       
       // Play BaseBlu-specific squish sound
       this.playSoundEffect('squish-baseblu', 0.5)
@@ -5529,16 +5643,26 @@ export class GameScene extends Phaser.Scene {
       const basePoints = EnemySpawningSystem.getPointValue(enemyType)
       this.score += basePoints
       this.updateScoreDisplay()
-      
+
+      // CRITICAL FIX: Track enemy kill even when climbing!
+      const enemyName = this.getEnemyTypeName(cat)
+      if (this.gameStats && enemyName !== 'unknown' && enemyName in this.gameStats.enemyKills) {
+        this.gameStats.enemyKills[enemyName as keyof typeof this.gameStats.enemyKills]++
+        this.gameStats.totalEnemiesDefeated++
+        this.game.registry.set('gameStats', this.gameStats)  // Save to registry
+        console.log(`✅ Kill tracked (climbing): ${enemyName} | Total ${enemyName}: ${this.gameStats.enemyKills[enemyName as keyof typeof this.gameStats.enemyKills]} | Total enemies: ${this.gameStats.totalEnemiesDefeated}`)
+        // this.updateDebugKillTracker() // Debug tracker disabled
+      }
+
       // Make player bounce up (slightly less than normal jump)
       player.setVelocityY(GameSettings.game.jumpVelocity * 0.7)
-      
+
       // Squish the cat
       cat.squish()
-      
+
       // Show point popup at cat position
       this.showPointPopup(cat.x, cat.y - 20, basePoints)
-      
+
       return
     }
     
@@ -5581,10 +5705,12 @@ export class GameScene extends Phaser.Scene {
     
     // Track enemy kill for stats
     const enemyName = this.getEnemyTypeName(cat)
-    if (enemyName !== 'unknown' && enemyName in this.gameStats.enemyKills) {
+    if (this.gameStats && enemyName !== 'unknown' && enemyName in this.gameStats.enemyKills) {
       this.gameStats.enemyKills[enemyName as keyof typeof this.gameStats.enemyKills]++
       this.gameStats.totalEnemiesDefeated++
+      this.game.registry.set('gameStats', this.gameStats)  // Save to registry
       console.log(`✅ Kill tracked: ${enemyName} | Total ${enemyName}: ${this.gameStats.enemyKills[enemyName as keyof typeof this.gameStats.enemyKills]} | Total enemies: ${this.gameStats.totalEnemiesDefeated}`)
+      // this.updateDebugKillTracker() // Debug tracker disabled
     } else {
       console.error(`❌ Kill NOT tracked! Enemy type: ${enemyName}`)
     }
@@ -5672,8 +5798,12 @@ export class GameScene extends Phaser.Scene {
     player.setVelocityY(GameSettings.game.jumpVelocity * 0.7)
     
     // Track beetle kill for stats
-    this.gameStats.enemyKills.rollz++
-    this.gameStats.totalEnemiesDefeated++
+    if (this.gameStats) {
+      this.gameStats.enemyKills.rollz++
+      this.gameStats.totalEnemiesDefeated++
+      this.game.registry.set('gameStats', this.gameStats)  // Save to registry
+      // this.updateDebugKillTracker() // Debug tracker disabled
+    }
     
     // Play beetle-specific squish sound
     this.playSoundEffect('squish-beetle', 0.5)
@@ -5787,8 +5917,12 @@ export class GameScene extends Phaser.Scene {
     player.setVelocityY(GameSettings.game.jumpVelocity * 0.7)
     
     // Track Rex kill for stats
-    this.gameStats.enemyKills.rex++
-    this.gameStats.totalEnemiesDefeated++
+    if (this.gameStats) {
+      this.gameStats.enemyKills.rex++
+      this.gameStats.totalEnemiesDefeated++
+      this.game.registry.set('gameStats', this.gameStats)  // Save to registry
+      // this.updateDebugKillTracker() // Debug tracker disabled
+    }
     
     // Play Rex-specific squish sound
     this.playSoundEffect('squish-rex', 0.5)
@@ -5829,7 +5963,17 @@ export class GameScene extends Phaser.Scene {
     const triplePoints = basePoints * 3
     this.score += triplePoints
     this.updateScoreDisplay()
-    
+
+    // CRITICAL FIX: Track enemy kill for invincibility kills!
+    const enemyName = this.getEnemyTypeName(enemy)
+    if (this.gameStats && enemyName !== 'unknown' && enemyName in this.gameStats.enemyKills) {
+      this.gameStats.enemyKills[enemyName as keyof typeof this.gameStats.enemyKills]++
+      this.gameStats.totalEnemiesDefeated++
+      this.game.registry.set('gameStats', this.gameStats)  // Save to registry
+      console.log(`✅ Kill tracked (invincibility): ${enemyName} | Total ${enemyName}: ${this.gameStats.enemyKills[enemyName as keyof typeof this.gameStats.enemyKills]} | Total enemies: ${this.gameStats.totalEnemiesDefeated}`)
+      // this.updateDebugKillTracker() // Debug tracker disabled
+    }
+
     // Make player bounce slightly (less than normal jump)
     player.setVelocityY(GameSettings.game.jumpVelocity * 0.5)
     
@@ -5933,6 +6077,27 @@ export class GameScene extends Phaser.Scene {
     const totalScore = this.accumulatedScore + this.score
     this.scoreText.setText(`${totalScore}`)
   }
+
+  private updateDebugKillTracker(): void {
+    if (this.debugKillTracker && this.gameStats) {
+      const kills = this.gameStats.enemyKills
+      this.debugKillTracker.setText(
+        `DEBUG KILLS:\n` +
+        `Cat: ${kills.caterpillar}\n` +
+        `Rollz: ${kills.rollz}\n` +
+        `Chomp: ${kills.chomper}\n` +
+        `Snail: ${kills.snail}\n` +
+        `Bounce: ${kills.bouncer}\n` +
+        `Stalk: ${kills.stalker}\n` +
+        `Rex: ${kills.rex}\n` +
+        `Blu: ${kills.blu}\n` +
+        `Total: ${this.gameStats.totalEnemiesDefeated}`
+      )
+      console.log('📊 Debug tracker updated:', this.gameStats.enemyKills)
+    } else {
+      console.log('⚠️ Debug tracker not ready - gameStats:', this.gameStats)
+    }
+  }
   
   private updateComboDisplay(): void {
     if (this.comboCount > 1) {
@@ -5958,83 +6123,6 @@ export class GameScene extends Phaser.Scene {
       this.comboTimer.destroy()
       this.comboTimer = null
     }
-  }
-  
-  private createDebugGridlines(): void {
-    const graphics = this.add.graphics()
-    graphics.lineStyle(1, 0x00ff00, 0.3) // Green lines with 30% opacity
-    graphics.setDepth(9999) // On top of everything
-    graphics.setScrollFactor(1) // Scrolls with camera
-    
-    // Draw horizontal gridlines every 32 pixels (tile size)
-    const tileSize = GameSettings.game.tileSize
-    const canvasHeight = GameSettings.canvas.height
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
-    
-    // Ground floor line (where player starts)
-    const groundY = canvasHeight - tileSize
-    graphics.lineStyle(2, 0xff0000, 0.5) // Red for ground floor
-    graphics.beginPath()
-    graphics.moveTo(-1000, groundY)
-    graphics.lineTo(2000, groundY)
-    graphics.stroke()
-    
-    // Add text label for ground floor
-    const groundText = this.add.text(10, groundY - 20, `Ground Floor (Y=${groundY})`, {
-      fontSize: '12px',
-      color: '#ff0000',
-      backgroundColor: '#000000'
-    })
-    groundText.setDepth(10000)
-    groundText.setScrollFactor(1)
-    
-    // Draw floor lines
-    for (let floor = 1; floor <= 10; floor++) {
-      const y = groundY - (floor * floorSpacing)
-      
-      // Main floor line
-      graphics.lineStyle(1, 0x00ffff, 0.4) // Cyan for floors
-      graphics.beginPath()
-      graphics.moveTo(-1000, y)
-      graphics.lineTo(2000, y)
-      graphics.stroke()
-      
-      // Floor label
-      const floorText = this.add.text(10, y - 15, `Floor ${floor} (Y=${y})`, {
-        fontSize: '10px',
-        color: '#00ffff',
-        backgroundColor: '#000000'
-      })
-      floorText.setDepth(10000)
-      floorText.setScrollFactor(1)
-    }
-    
-    // Draw tile grid lines (every 32px)
-    graphics.lineStyle(1, 0x00ff00, 0.2) // Green for tile grid
-    for (let y = 0; y < 2000; y += tileSize) {
-      graphics.beginPath()
-      graphics.moveTo(-1000, y)
-      graphics.lineTo(2000, y)
-      graphics.stroke()
-    }
-    
-    // Negative Y area (above ground)
-    for (let y = -tileSize; y > -2000; y -= tileSize) {
-      graphics.beginPath()
-      graphics.moveTo(-1000, y)
-      graphics.lineTo(2000, y)
-      graphics.stroke()
-    }
-    
-    console.log('📏 Debug Gridlines Created:', {
-      groundFloor: groundY,
-      floorSpacing: floorSpacing,
-      tileSize: tileSize,
-      canvasHeight: canvasHeight,
-      floor1Y: groundY - floorSpacing,
-      floor2Y: groundY - (2 * floorSpacing),
-      floor3Y: groundY - (3 * floorSpacing)
-    })
   }
   
   private createVisibilitySystem(): void {
@@ -6279,7 +6367,10 @@ export class GameScene extends Phaser.Scene {
     // Lose a life
     const oldLives = this.lives
     this.lives--
-    this.gameStats.livesLost++  // Track lives lost for stats
+    if (this.gameStats) {
+      this.gameStats.livesLost++  // Track lives lost for stats
+      this.game.registry.set('gameStats', this.gameStats)  // Save to registry
+    }
     this.game.registry.set('playerLives', this.lives)  // Save to registry
     this.updateLivesDisplay()
     
@@ -6404,7 +6495,10 @@ export class GameScene extends Phaser.Scene {
     this.playSoundEffect('treasure-chest-open', 0.5)
     
     // Track treasure chest opened
-    this.gameStats.treasureChestsOpened++
+    if (this.gameStats) {
+      this.gameStats.treasureChestsOpened++
+      this.game.registry.set('gameStats', this.gameStats)  // Save to registry
+    }
     
     // Award base chest points (2500)
     this.score += 2500
@@ -6719,14 +6813,17 @@ export class GameScene extends Phaser.Scene {
     
     // Update current floor based on player position
     const tileSize = GameSettings.game.tileSize
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     const playerFloor = Math.max(0, Math.floor((GameSettings.canvas.height - this.player.y - tileSize/2) / floorSpacing))
     
     if (playerFloor !== this.currentFloor) {
       // Floor changed - update tracking (no points awarded)
       this.currentFloor = playerFloor
-      // Track highest floor for stats
-      this.gameStats.highestFloor = Math.max(this.gameStats.highestFloor, playerFloor)
+      // Track highest floor for stats (with safety check for undefined gameStats)
+      if (this.gameStats) {
+        this.gameStats.highestFloor = Math.max(this.gameStats.highestFloor || 0, playerFloor)
+        this.game.registry.set('gameStats', this.gameStats)  // Save to registry
+      }
       // No floor text to update anymore - we show coins instead
     }
     
@@ -6742,7 +6839,7 @@ export class GameScene extends Phaser.Scene {
   private generateNextFloors(): void {
     const tileSize = GameSettings.game.tileSize
     const floorWidth = GameSettings.game.floorWidth
-    const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5)
+    const floorSpacing = tileSize * 5
     
     // Check level limits
     const levelConfig = this.levelManager.getLevelConfig(this.levelManager.getCurrentLevel())
@@ -6962,170 +7059,79 @@ export class GameScene extends Phaser.Scene {
 
   private startLevelIntro(targetX: number, targetY: number): void {
     this.isLevelStarting = true
+    console.log('🎬 === LEVEL INTRO START ===')
+    console.log('Canvas dimensions:', GameSettings.canvas.width, 'x', GameSettings.canvas.height)
+    console.log('Target spawn position (sprite center):', targetX, targetY)
+    console.log('Platform calculations:')
+    console.log('  - Platform center Y:', GameSettings.canvas.height - GameSettings.game.tileSize/2)
+    console.log('  - Platform top Y:', GameSettings.canvas.height - GameSettings.game.tileSize)
+    console.log('  - Player feet should be at Y:', targetY + 32)
     
     // Create entrance ladder extending below the floor
     const tileSize = GameSettings.game.tileSize
     const ladderX = tileSize/2 // Position ladder on the farthest left tile (tile 0)
     const floorY = GameSettings.canvas.height - tileSize/2
-    const groundFloorY = GameSettings.canvas.height - tileSize // Y=688 for 720px canvas
-    const platformTop = groundFloorY // Platform surface where player stands
     
-    // Console log for debugging intro positions
-    console.log('🎬 Level Intro Start:', {
-      targetX: targetX,
-      targetY: targetY,
-      originalTargetY: targetY,
-      canvasHeight: GameSettings.canvas.height,
-      groundFloorY: groundFloorY,
-      platformTop: platformTop,
-      floorY: floorY,
-      playerPhysicsHeight: 30,
-      playerShouldEndAt: platformTop - 15 // Center of player when standing
-    })
+    console.log('Tile size:', tileSize)
+    console.log('Ladder X position:', ladderX)
+    console.log('Floor Y position:', floorY)
     
-    // Override targetY to ensure player ends up at correct position
-    // Player has physics body: 18x49 with offset (15, 12)
-    // Sprite origin is at center (0.5, 0.5), so for a 48x64 sprite:
-    // - Sprite top = y - 32
-    // - Physics body top = sprite top + offset.y = y - 32 + 12 = y - 20
-    // - Physics body bottom = physics body top + height = y - 20 + 49 = y + 29
-    // We want physics body bottom at platformTop (688), so:
-    // y + 29 = 688, therefore y = 659
-    targetY = platformTop - 29 // This positions player so physics body bottom touches platform
+    // Create entrance ladder using new teal ladder sprite
+    // Keep ladder same size as in-game ladders, but position it so top aligns with floor
+    // Standard ladder extends about 5 tiles in height (like in-game ladders)
+    const visualHeight = tileSize * 5 // Keep standard ladder height
+    const ladderTop = targetY // Ladder top aligns with spawn floor where player walks
+    const ladderBottom = ladderTop + visualHeight // Bottom extends down from top
+    const ladderCenterY = (ladderTop + ladderBottom) / 2 + 1 // Match 1px downward shift from in-game ladders
     
-    console.log('🎯 Adjusted Target:', {
-      originalTargetY: arguments[1],
-      adjustedTargetY: targetY,
-      platformTop: platformTop,
-      willStandAt: targetY + 15 // Bottom of player sprite
-    })
-    
-    // Create entrance ladder with top edge 5px above ground floor
-    // We want the TOP EDGE of the ladder sprite to be at Y=683 (5px above ground floor)
-    // The ladder extends down below the screen for the intro climb
-    const ladderBottom = GameSettings.canvas.height + 80 // Extends 80px below screen (800)
-    
-    // To get the visual top at Y=683 (5px higher), we need to calculate based on desired height
-    // Let's make it about 150px tall for a reasonable climb
-    const desiredVisualHeight = 150
-    const ladderTopEdgeY = platformTop - 5  // Shift up 5px from ground floor
-    
-    // Since we want the visual TOP at 683, and height is 150:
-    // visualCenterY = 683 + (150/2) = 758
-    const visualCenterY = ladderTopEdgeY + (desiredVisualHeight / 2)
-    const visualHeight = desiredVisualHeight
-    
-    // Calculate the actual ladder bounds for the animation
-    const ladderTop = ladderTopEdgeY  // Top at 5px above ground floor
-    
-    console.log('🎨 Intro Ladder Visual Alignment:', {
-      visualTopEdge: visualCenterY - (visualHeight / 2),  // Should be 683 (5px above ground)
-      visualBottomEdge: visualCenterY + (visualHeight / 2),  // Should be 833
-      visualCenter: visualCenterY,
-      visualHeight: visualHeight,
-      groundFloorY: platformTop,
-      shiftedUp: 5  // Ladder shifted up 5px from ground floor
-    })
-    
-    console.log('🪜 Intro Ladder Setup:', {
-      ladderTop: Math.round(ladderTop),
-      ladderBottom: Math.round(ladderBottom),
-      visualHeight: Math.round(visualHeight),
-      visualCenterY: Math.round(visualCenterY),
-      targetY: Math.round(targetY),
-      platformTop: platformTop,
-      matchesGameplay: true
-    })
-    
-    // Add debug markers if in debug mode
-    if (GameSettings.debug) {
-      // Mark target position with a red circle
-      const targetMarker = this.add.circle(targetX, targetY, 5, 0xff0000, 0.8)
-      targetMarker.setDepth(10000)
-      
-      // Mark platform top with a green line
-      const platformLine = this.add.rectangle(360, platformTop, 720, 2, 0x00ff00, 0.8)
-      platformLine.setDepth(10000)
-      
-      // Mark ladder top and bottom with blue circles
-      const ladderTopMarker = this.add.circle(ladderX, ladderTop, 4, 0x0000ff, 0.8)
-      const ladderBottomMarker = this.add.circle(ladderX, ladderBottom, 4, 0x0000ff, 0.8)
-      ladderTopMarker.setDepth(10001)
-      ladderBottomMarker.setDepth(10001)
-      
-      // Add text labels
-      this.add.text(targetX + 10, targetY - 5, `Target: ${Math.round(targetY)}`, {
-        fontSize: '10px',
-        color: '#ff0000',
-        backgroundColor: '#000000'
-      }).setDepth(10002)
-      
-      // Clean up debug markers after animation
-      this.time.delayedCall(5000, () => {
-        targetMarker.destroy()
-        platformLine.destroy()
-        ladderTopMarker.destroy()
-        ladderBottomMarker.destroy()
-      })
-    }
+    console.log('🪜 LADDER CALCULATIONS:')
+    console.log('  - Ladder top:', ladderTop)
+    console.log('  - Ladder bottom:', ladderBottom)
+    console.log('  - Ladder height:', visualHeight)
+    console.log('  - Ladder center Y:', ladderCenterY)
+    console.log('  - Player spawn floor Y:', targetY)
     
     let entranceLadder: Phaser.GameObjects.Image | Phaser.GameObjects.Graphics
     
     if (this.textures.exists('tealLadder')) {
-      // Position ladder with top edge at ground floor
-      entranceLadder = this.add.image(ladderX, visualCenterY, 'tealLadder')
-      // Scale to exact height
+      // Use exact same sprite creation as in-game ladders for visual consistency
+      entranceLadder = this.add.image(ladderX + 1, ladderCenterY, 'tealLadder')  // Moved 1 pixel to the right, already has 1px shift in ladderCenterY
+      // Scale to proper height while maintaining aspect ratio - exactly like in-game ladders
       entranceLadder.setDisplaySize(entranceLadder.width * (visualHeight / entranceLadder.height), visualHeight)
       entranceLadder.setDepth(5)
-      
-      console.log('🖼️ Ladder Sprite Positioned:', {
-        x: ladderX,
-        y: visualCenterY,
-        displayHeight: visualHeight,
-        topEdge: visualCenterY - (visualHeight / 2)
-      })
     } else {
-      // Fallback to graphics ladder matching gameplay ladder visuals
+      // Fallback to graphics ladder - match in-game ladder style
       entranceLadder = this.add.graphics()
-      const visualTop = visualCenterY - visualHeight/2
-      const visualBottom = visualCenterY + visualHeight/2
-      
       entranceLadder.fillStyle(0x40e0d0, 1) // Teal color to match game theme
-      entranceLadder.fillRect(ladderX - 2, visualTop, 4, visualHeight) // Center rail
-      entranceLadder.fillRect(ladderX - 13, visualTop + 4, 26, 4) // Top rung (offset like gameplay)
-      entranceLadder.fillRect(ladderX - 13, visualBottom - 4, 26, 4) // Bottom rung
+      entranceLadder.fillRect(ladderX - 2, ladderTop, 4, visualHeight) // Center rail
+      entranceLadder.fillRect(ladderX - 13, ladderTop, 26, 4) // Top rung
+      entranceLadder.fillRect(ladderX - 13, ladderBottom - 4, 26, 4) // Bottom rung
       
-      // Middle rungs matching gameplay spacing
+      // Middle rungs - consistent spacing like in-game ladders
       const numRungs = Math.floor(visualHeight / 32)
       for (let i = 1; i < numRungs; i++) {
-        const rungY = visualTop + (i * (visualHeight / (numRungs + 1)))
+        const rungY = ladderTop + (i * (visualHeight / (numRungs + 1)))
         entranceLadder.fillRect(ladderX - 13, rungY, 26, 3)
       }
       
       entranceLadder.setDepth(5)
     }
     
-    // Position player at bottom of ladder (off screen)
-    // Since ladder bottom is at 800, start player at 780 for a good climb
-    const playerStartY = GameSettings.canvas.height + 60 // Start at Y=780
+    // Ladder positioning info
+    
+    // Position player at bottom of ladder (may be on-screen now since ladder is positioned higher)
+    // Start player at bottom of ladder for climbing animation
+    const playerStartY = ladderBottom - 20 // Player starts near bottom of ladder
     this.player.x = ladderX
     this.player.y = playerStartY
     
-    // Ensure physics is disabled during intro
-    if (this.player.body) {
-      this.player.body.enable = false
-      console.log('⚠️ Physics disabled for intro animation')
-    }
-    
-    console.log('🎭 Player Intro Position:', {
-      playerStartY: playerStartY,
-      ladderBottom: ladderBottom,
-      ladderTop: ladderTop,
-      visualHeight: visualHeight,
-      targetY: targetY,
-      willClimbTo: targetY,
-      physicsEnabled: this.player.body?.enable || false
-    })
+    console.log('👤 PLAYER POSITIONING:')
+    console.log('  - Player start Y (bottom of ladder - 20):', playerStartY)
+    console.log('  - Player start X:', ladderX)
+    console.log('  - Player needs to climb to Y:', targetY)
+    console.log('  - Distance to climb:', targetY - playerStartY)
+    console.log('  - Spawn floor visual Y:', targetY)
+    console.log('  - Canvas height:', GameSettings.canvas.height)
     
     // Set initial climbing sprite (or fallback)
     if (this.textures.exists('playerClimbLeftFoot')) {
@@ -7135,7 +7141,11 @@ export class GameScene extends Phaser.Scene {
     }
     this.player.setDisplaySize(48, 64)
     
-    // Player start position (replaced console.log)
+    console.log('  - Player sprite size: 48x64')
+    console.log('  - Visual alignment check:')
+    console.log('    * Spawn floor is at Y:', targetY)
+    console.log('    * Player bottom when standing:', targetY + 32, '(half sprite height)')
+    console.log('    * Floor surface Y:', GameSettings.canvas.height - 16)
     
     // Debug markers removed - no longer needed
     // (These were causing red, green, and blue circles during ladder animation)
@@ -7143,46 +7153,15 @@ export class GameScene extends Phaser.Scene {
     // Phase 1: Climbing animation - climb to the actual target Y (not floor Y)
     this.animatePlayerClimbing(ladderX, targetY, () => {
       // Phase 2: Bouncing animation
-      console.log('🎯 Starting bounce animation at Y:', Math.round(this.player.y))
       this.animatePlayerBouncing(targetX, targetY, () => {
         // Phase 3: Complete intro
-        console.log('✅ Intro animation complete! Player at:', {
-          x: Math.round(this.player.x),
-          y: Math.round(this.player.y),
-          targetY: Math.round(targetY),
-          aboutToEnablePhysics: true
-        })
-        
-        // Make sure player is at exact target position before enabling physics
-        this.player.setPosition(targetX, targetY)
-        
-        // CRITICAL: Sync physics body position with sprite position
-        // The body seems to be offset, so we need to manually sync it
-        this.player.body!.reset(targetX, targetY)
-        
-        // Re-enable physics AFTER position sync
         this.player.body!.enable = true
         this.isLevelStarting = false
-        
-        console.log('⚡ Physics re-enabled! Player now at:', {
-          x: Math.round(this.player.x),
-          y: Math.round(this.player.y),
-          bodyY: Math.round(this.player.body!.y),
-          bodyBottom: Math.round(this.player.body!.bottom),
-          bodyOffset: {
-            x: this.player.body!.offset.x,
-            y: this.player.body!.offset.y
-          },
-          velocity: this.player.body!.velocity,
-          gravity: this.physics.world.gravity,
-          shouldBeStandingAt: platformTop
-        })
         
         // Clear the progression flag now that intro is complete
         this.game.registry.set('levelProgression', false)
         
-        // Notify Farcade SDK that game is ready
-        this.notifyFarcadeGameReady()
+        // Game is ready
         
         // Fade out entrance ladder
         this.tweens.add({
@@ -7201,14 +7180,16 @@ export class GameScene extends Phaser.Scene {
   }
   
   private animatePlayerClimbing(ladderX: number, targetY: number, onComplete: () => void): void {
-    console.log('🧗 Climbing Animation Start:', {
-      currentY: Math.round(this.player.y),
-      targetY: Math.round(targetY),
-      distanceToClimb: Math.round(this.player.y - targetY)
-    })
+    console.log('🧗 === CLIMBING ANIMATION START ===')
+    console.log('  - Ladder X:', ladderX)
+    console.log('  - Target Y (spawn floor center):', targetY)
+    console.log('  - Player current position:', this.player.x, this.player.y)
+    console.log('  - Distance to climb:', targetY - this.player.y)
+    console.log('  - Player should end with feet on floor at Y:', targetY + 32)
     
     // Check if sprites are loaded
     const hasClimbSprites = this.textures.exists('playerClimbLeftFoot') && this.textures.exists('playerClimbRightFoot')
+    console.log('  - Climb sprites available:', hasClimbSprites)
     
     if (!hasClimbSprites) {
       console.warn('⚠️ Climb sprites not loaded! Using fallback animation')
@@ -7241,18 +7222,25 @@ export class GameScene extends Phaser.Scene {
     })
     
     // Move player up the ladder
+    let lastLoggedProgress = -1
     this.tweens.add({
       targets: this.player,
       y: targetY,
       duration: 2000, // 2 seconds to climb
       ease: 'Linear',
       onUpdate: (tween) => {
-        if (climbFrame === 1) { // Log once during climb
-          // Climbing progress (replaced console.log)
+        // Log progress every 10%
+        const progress = Math.floor(tween.progress * 10)
+        if (progress !== lastLoggedProgress) {
+          lastLoggedProgress = progress
+          console.log(`  🧗 Climbing: ${progress * 10}% - Player Y: ${this.player.y.toFixed(1)} (Target: ${targetY})`)
         }
       },
       onComplete: () => {
-        // Climbing complete (replaced console.log)
+        console.log('🧗 === CLIMBING COMPLETE ===')
+        console.log('  - Final player Y:', this.player.y)
+        console.log('  - Target Y was:', targetY)
+        console.log('  - Y difference:', Math.abs(this.player.y - targetY))
         climbTimer.destroy()
         onComplete()
       }
@@ -7260,11 +7248,12 @@ export class GameScene extends Phaser.Scene {
   }
   
   private animatePlayerBouncing(targetX: number, targetY: number, onComplete: () => void): void {
+    console.log('🏃 === BOUNCING ANIMATION START ===')
+    console.log('  - Target position:', targetX, targetY)
+    console.log('  - Player current position:', this.player.x, this.player.y)
+    console.log('  - Horizontal distance to move:', targetX - this.player.x)
+    
     // Sequence: jump off ladder → 2 bounces to target → idle + talking bubble
-    console.log('🏀 Bounce Animation Start:', {
-      currentPos: { x: Math.round(this.player.x), y: Math.round(this.player.y) },
-      targetPos: { x: Math.round(targetX), y: Math.round(targetY) }
-    })
     
     // Face right for movement
     this.player.setFlipX(false)
@@ -7272,25 +7261,44 @@ export class GameScene extends Phaser.Scene {
     // Use jumping sprite for bouncing animation
     const jumpTexture = this.textures.exists('playerJumpRightFoot') ? 'playerJumpRightFoot' : 'playerIdleEye1'
     this.player.setTexture(jumpTexture)
+    console.log('  - Using jump texture:', jumpTexture)
     
     // Create horizontal movement with 2 bounces to target position
+    let lastBounceProgress = -1
     this.tweens.add({
       targets: this.player,
       x: targetX,
       duration: 800, // Faster movement with only 2 bounces
       ease: 'Power2.easeOut',
+      onUpdate: (tween) => {
+        // Log progress every 10%
+        const progress = Math.floor(tween.progress * 10)
+        if (progress !== lastBounceProgress) {
+          lastBounceProgress = progress
+          console.log(`  🏃 Bouncing: ${progress * 10}% - Player pos: (${this.player.x.toFixed(1)}, ${this.player.y.toFixed(1)})`)
+        }
+      },
       onComplete: () => {
+        console.log('🏃 === BOUNCING COMPLETE ===')
+        console.log('  - Final player position:', this.player.x, this.player.y)
+        console.log('  - Target position was:', targetX, targetY)
+        console.log('  - Position difference: X:', Math.abs(this.player.x - targetX), 'Y:', Math.abs(this.player.y - targetY))
+        
         // Set to idle texture and trigger talking bubble
         this.changePlayerTexture('playerIdleEye1')
         
         // Trigger the talking bubble after a brief delay
         this.time.delayedCall(300, () => {
+          console.log('💭 Triggering talking bubble')
           // Trigger bubble system (this will show random thoughts/speech)
           if (this.player.onBubbleTrigger) {
             this.player.onBubbleTrigger()
           }
         })
         
+        console.log('✅ === ENTIRE INTRO SEQUENCE COMPLETE ===')
+        console.log('  - Player final position:', this.player.x, this.player.y)
+        console.log('  - Expected spawn position:', targetX, targetY)
         onComplete()
       }
     })
@@ -7465,7 +7473,7 @@ export class GameScene extends Phaser.Scene {
     // Only create door for non-endless levels
     if (!levelConfig.isEndless && levelConfig.floorCount > 0) {
       const tileSize = GameSettings.game.tileSize
-      const floorSpacing = (GameSettings.game as any).floorSpacing || (tileSize * 5) // Same spacing as in createTestLevel
+      const floorSpacing = tileSize * 5 // Same spacing as in createTestLevel
       
       // Calculate the Y position of the top floor
       const topFloor = levelConfig.floorCount - 1
@@ -8466,23 +8474,11 @@ export class GameScene extends Phaser.Scene {
         fontStyle: 'bold'
       }
     ).setOrigin(0.5).setDepth(201).setScrollFactor(0)
-    
-    // Floors Climbed
-    const floorsText = this.add.text(
-      popupX,
-      popupY - 100,
-      `Floors Climbed: ${this.gameStats.highestFloor}`,
-      {
-        fontSize: '10px',
-        color: '#9acf07',  // Green
-        fontFamily: '"Press Start 2P", system-ui'
-      }
-    ).setOrigin(0.5).setDepth(201).setScrollFactor(0)
-    
+
     // Level Reached
     const levelText = this.add.text(
       popupX,
-      popupY - 80,
+      popupY - 100,
       `Level Reached: ${this.levelManager.getCurrentLevel()}`,
       {
         fontSize: '10px',
@@ -8490,11 +8486,11 @@ export class GameScene extends Phaser.Scene {
         fontFamily: '"Press Start 2P", system-ui'
       }
     ).setOrigin(0.5).setDepth(201).setScrollFactor(0)
-    
+
     // Gems Collected
     const gemsText = this.add.text(
       popupX,
-      popupY - 60,
+      popupY - 80,
       `Gems Collected: ${this.totalGemsCollected + this.totalBlueGemsCollected + this.totalDiamondsCollected}`,
       {
         fontSize: '10px',
@@ -8502,12 +8498,12 @@ export class GameScene extends Phaser.Scene {
         fontFamily: '"Press Start 2P", system-ui'
       }
     ).setOrigin(0.5).setDepth(201).setScrollFactor(0)
-    
+
     // Treasure Chests
     const chestsText = this.add.text(
       popupX,
-      popupY - 40,
-      `Treasure Chests: ${this.gameStats.treasureChestsOpened}`,
+      popupY - 60,
+      `Treasure Chests: ${this.gameStats?.treasureChestsOpened || 0}`,
       {
         fontSize: '10px',
         color: '#9acf07',  // Green
@@ -8518,7 +8514,7 @@ export class GameScene extends Phaser.Scene {
     // COMBAT STATS Section Header
     const combatHeader = this.add.text(
       popupX,
-      popupY - 10,
+      popupY - 30,
       '⚔️ ENEMIES DEFEATED',
       {
         fontSize: '12px',
@@ -8535,7 +8531,7 @@ export class GameScene extends Phaser.Scene {
     const caterpillarText = this.add.text(
       popupX,
       enemyY,
-      `Caterpillar: ${this.gameStats.enemyKills.caterpillar}`,
+      `Caterpillar: ${this.gameStats?.enemyKills?.caterpillar || 0}`,
       {
         fontSize: '10px',
         color: '#9acf07',  // Green
@@ -8546,7 +8542,7 @@ export class GameScene extends Phaser.Scene {
     const rollzText = this.add.text(
       popupX,
       enemyY + 18,
-      `Rollz: ${this.gameStats.enemyKills.rollz}`,
+      `Rollz: ${this.gameStats?.enemyKills?.rollz || 0}`,
       {
         fontSize: '10px',
         color: '#9acf07',  // Green
@@ -8557,7 +8553,7 @@ export class GameScene extends Phaser.Scene {
     const chomperText = this.add.text(
       popupX,
       enemyY + 36,
-      `Chomper: ${this.gameStats.enemyKills.chomper}`,
+      `Chomper: ${this.gameStats?.enemyKills?.chomper || 0}`,
       {
         fontSize: '10px',
         color: '#9acf07',  // Green
@@ -8568,7 +8564,7 @@ export class GameScene extends Phaser.Scene {
     const snailText = this.add.text(
       popupX,
       enemyY + 54,
-      `Snail: ${this.gameStats.enemyKills.snail}`,
+      `Snail: ${this.gameStats?.enemyKills?.snail || 0}`,
       {
         fontSize: '10px',
         color: '#9acf07',  // Green
@@ -8579,7 +8575,7 @@ export class GameScene extends Phaser.Scene {
     const bouncerText = this.add.text(
       popupX,
       enemyY + 72,
-      `Bouncer: ${this.gameStats.enemyKills.bouncer}`,
+      `Bouncer: ${this.gameStats?.enemyKills?.bouncer || 0}`,
       {
         fontSize: '10px',
         color: '#9acf07',  // Green
@@ -8590,7 +8586,7 @@ export class GameScene extends Phaser.Scene {
     const stalkerText = this.add.text(
       popupX,
       enemyY + 90,
-      `Stalker: ${this.gameStats.enemyKills.stalker}`,
+      `Stalker: ${this.gameStats?.enemyKills?.stalker || 0}`,
       {
         fontSize: '10px',
         color: '#9acf07',  // Green
@@ -8601,7 +8597,7 @@ export class GameScene extends Phaser.Scene {
     const rexText = this.add.text(
       popupX,
       enemyY + 108,
-      `Rex: ${this.gameStats.enemyKills.rex}`,
+      `Rex: ${this.gameStats?.enemyKills?.rex || 0}`,
       {
         fontSize: '10px',
         color: '#9acf07',  // Green
@@ -8612,7 +8608,7 @@ export class GameScene extends Phaser.Scene {
     const bluText = this.add.text(
       popupX,
       enemyY + 126,
-      `Blu: ${this.gameStats.enemyKills.blu}`,
+      `Blu: ${this.gameStats?.enemyKills?.blu || 0}`,
       {
         fontSize: '10px',
         color: '#9acf07',  // Green
@@ -8624,7 +8620,7 @@ export class GameScene extends Phaser.Scene {
     const totalText = this.add.text(
       popupX,
       enemyY + 148,
-      `Total Enemies: ${this.gameStats.totalEnemiesDefeated}`,
+      `Total: ${this.gameStats?.totalEnemiesDefeated || 0}`,
       {
         fontSize: '11px',
         color: '#9acf07',  // Green
@@ -8665,16 +8661,9 @@ export class GameScene extends Phaser.Scene {
       }
     ).setOrigin(0.5).setDepth(202).setScrollFactor(0)
     
-    // Start over handler - for dgen1, restart directly without SDK
+    // Start over handler - report score to Play.fun then restart
     restartButton.on('pointerdown', () => {
-      console.log('🔄 Continue button clicked!')
-
-      // Play.fun: report score via platform, then restart
-      const platform = this.game.registry.get('platform')
-      if (platform) {
-        platform.gameOver(finalScore)
-      }
-      console.log('[PlayFun] Score reported, restarting game...')
+      reportGameOver(finalScore)
       this.restartGame()
     })
     
@@ -8691,10 +8680,7 @@ export class GameScene extends Phaser.Scene {
     
     // Keyboard support
     this.input.keyboard!.on('keydown-R', () => {
-      const platform = this.game.registry.get('platform')
-      if (platform) {
-        platform.gameOver(finalScore)
-      }
+      reportGameOver(finalScore)
       this.restartGame()
     })
   }
@@ -8914,85 +8900,126 @@ export class GameScene extends Phaser.Scene {
 
   // Helper method to get enemy type name for stats tracking
   private getEnemyTypeName(enemy: any): string {
-    if (enemy.constructor.name === 'Cat') {
-      // Use getter methods if available, fallback to properties
-      const color = enemy.getCatColor ? enemy.getCatColor() : 
-                     enemy.catColor || enemy.color || enemy.getData?.('color')
-      const isStalker = enemy.getIsStalker ? enemy.getIsStalker() : 
-                        enemy.isStalker || enemy.getData?.('isStalker')
-      
-      // Debug logging to verify it's working
-      console.log(`🎯 Enemy type detection - Color: ${color}, Stalker: ${isStalker}`)
-      
-      switch(color) {
-        case 'yellow': return 'caterpillar'
-        case 'blue_caterpillar': return 'caterpillar'  // Track blue caterpillar as caterpillar
-        case 'blue': return 'chomper'
-        case 'purple': return 'chomper'  // Track purple chomper as chomper
-        case 'red': return isStalker ? 'stalker' : 'snail'
-        case 'green': return 'bouncer'
-        default: 
-          console.warn('❌ Unknown enemy color:', color)
-          return 'unknown'
+    // COMPREHENSIVE ENEMY TYPE DETECTION
+    const constructorName = enemy.constructor?.name || 'Unknown'
+
+    // Log for debugging
+    console.log(`🔍 Enemy type detection - Constructor: ${constructorName}`)
+
+    // Handle Cat enemies (multiple types based on color)
+    if (constructorName === 'Cat' || enemy instanceof Cat) {
+      let color = null
+
+      // Try all methods to get color
+      if (typeof enemy.getCatColor === 'function') {
+        try {
+          color = enemy.getCatColor()
+        } catch (e) {
+          console.error('Error calling getCatColor:', e)
+        }
       }
-    } else if (enemy.constructor.name === 'Beetle') {
+
+      if (!color && enemy.catColor !== undefined) {
+        color = enemy.catColor
+      }
+
+      if (!color && enemy.color !== undefined) {
+        color = enemy.color
+      }
+
+      if (!color && typeof enemy.getData === 'function') {
+        try {
+          color = enemy.getData('color') || enemy.getData('catColor')
+        } catch (e) {
+          console.error('Error calling getData:', e)
+        }
+      }
+
+      // Check if it's a stalker
+      let isStalker = false
+      if (typeof enemy.getIsStalker === 'function') {
+        try {
+          isStalker = enemy.getIsStalker()
+        } catch (e) {
+          isStalker = false
+        }
+      }
+      if (!isStalker) {
+        isStalker = enemy.isStalker === true || enemy.getData?.('isStalker') === true
+      }
+
+      console.log(`🎨 Cat enemy - Color: ${color}, IsStalker: ${isStalker}`)
+
+      // Convert color to enemy type
+      if (color) {
+        const colorStr = String(color).toLowerCase()
+
+        // Handle all yellow variants (caterpillar)
+        if (colorStr.includes('yellow')) {
+          return 'caterpillar'
+        }
+
+        // Handle blue caterpillar specifically
+        if (colorStr === 'blue_caterpillar' || colorStr === 'bluecaterpillar') {
+          return 'caterpillar'
+        }
+
+        // Handle blue/purple chompers
+        if (colorStr === 'blue' || colorStr === 'purple') {
+          return 'chomper'
+        }
+
+        // Handle red enemies (snail or stalker)
+        if (colorStr === 'red') {
+          return isStalker ? 'stalker' : 'snail'
+        }
+
+        // Handle green bouncer
+        if (colorStr === 'green') {
+          return 'bouncer'
+        }
+      }
+
+      console.warn(`⚠️ Could not determine Cat enemy type - Color: ${color}`)
+      return 'unknown'
+    }
+
+    // Handle Beetle (Rollz)
+    if (constructorName === 'Beetle' || enemy instanceof Beetle) {
+      console.log(`🐞 Identified as Beetle/Rollz`)
       return 'rollz'
-    } else if (enemy.constructor.name === 'Rex') {
+    }
+
+    // Handle Rex
+    if (constructorName === 'Rex' || enemy instanceof Rex) {
+      console.log(`🦖 Identified as Rex`)
       return 'rex'
-    } else if (enemy.constructor.name === 'BaseBlu') {
+    }
+
+    // Handle BaseBlu
+    if (constructorName === 'BaseBlu' || enemy instanceof BaseBlu) {
+      console.log(`👻 Identified as BaseBlu`)
       return 'blu'
     }
+
+    // Handle StalkerCat (in case it's a separate class)
+    if (constructorName === 'StalkerCat') {
+      console.log(`👁️ Identified as StalkerCat`)
+      return 'stalker'
+    }
+
+    console.warn(`❌ Unknown enemy type - Constructor: ${constructorName}`)
     return 'unknown'
   }
 
-  // Farcade SDK Integration Methods
-  private notifyFarcadeGameReady(): void {
+  // Haptic feedback - use navigator.vibrate when available
+  public triggerFarcadeHapticFeedback(): void {
     try {
-      if (typeof window !== 'undefined' && (window as any).FarcadeSDK) {
-        (window as any).FarcadeSDK.singlePlayer.actions.ready()
+      if ('vibrate' in navigator) {
+        navigator.vibrate(50)
       }
     } catch (error) {
-      // Fail silently if SDK not available
-    }
-  }
-
-  private notifyFarcadeGameOver(score: number): void {
-    try {
-      if (typeof window !== 'undefined' && (window as any).FarcadeSDK) {
-        (window as any).FarcadeSDK.singlePlayer.actions.gameOver({ score })
-      }
-    } catch (error) {
-      // Fail silently if SDK not available
-    }
-  }
-
-  private triggerFarcadeHapticFeedback(): void {
-    try {
-      if (typeof window !== 'undefined' && (window as any).FarcadeSDK) {
-        (window as any).FarcadeSDK.singlePlayer.actions.hapticFeedback()
-      }
-    } catch (error) {
-      // Fail silently if SDK not available
-    }
-  }
-
-  private setupFarcadeEventHandlers(): void {
-    try {
-      if (typeof window !== 'undefined' && (window as any).FarcadeSDK) {
-        const sdk = (window as any).FarcadeSDK
-        
-        // Handle play_again event
-        sdk.singlePlayer.events.on('play_again', () => {
-          this.restartGame()
-        })
-        
-        // Handle toggle_mute event (placeholder for when audio is added)
-        sdk.singlePlayer.events.on('toggle_mute', () => {
-          // TODO: Implement audio mute/unmute when audio system is added
-        })
-      }
-    } catch (error) {
-      // Fail silently if SDK not available
+      // Fail silently
     }
   }
 
@@ -9005,7 +9032,28 @@ export class GameScene extends Phaser.Scene {
     this.game.registry.set('totalCoins', 0) // Use correct key
     this.game.registry.set('livesEarned', 0) // Reset lives earned counter
     this.game.registry.set('accumulatedScore', 0)
-    
+
+    // CRITICAL: Reset gameStats for new game (START OVER button)
+    this.gameStats = {
+      treasureChestsOpened: 0,
+      enemyKills: {
+        caterpillar: 0,
+        rollz: 0,
+        chomper: 0,
+        snail: 0,
+        bouncer: 0,
+        stalker: 0,
+        rex: 0,
+        blu: 0
+      },
+      totalEnemiesDefeated: 0,
+      highestFloor: 0,
+      livesLost: 0
+    }
+    // Save reset gameStats to registry
+    this.game.registry.set('gameStats', this.gameStats)
+    console.log('🎮 Reset gameStats for new game')
+
     // Restart the scene
     this.scene.restart()
   }

@@ -19,7 +19,7 @@ export class CrystalBallProjectile extends Phaser.Physics.Arcade.Sprite {
     
     // Set size and physics properties to match the crystal ball sprite
     this.setDisplaySize(16, 16) // Slightly larger for better visibility
-    this.setSize(12, 12) // Hitbox size
+    this.setSize(20, 20) // Increased hitbox size from 12x12 to 20x20 for better enemy capture
     this.setDepth(15)
     
     // Set initial velocity with slight upward arc

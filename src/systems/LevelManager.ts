@@ -232,16 +232,8 @@ export class LevelManager {
    * Save progress to local storage
    */
   private saveProgress(): void {
-    try {
-      // Only track furthest level reached, don't save current level
-      // (we always want to restart from Level 1)
-      const furthestLevel = parseInt(localStorage.getItem('treasureQuest_furthestLevel') || '1')
-      if (this.currentLevel > furthestLevel) {
-        localStorage.setItem('treasureQuest_furthestLevel', this.currentLevel.toString())
-      }
-    } catch (e) {
-      console.warn('Could not save progress to localStorage:', e)
-    }
+    // Progress saving disabled for sandbox compatibility
+    // Game always starts from Level 1 anyway
   }
   
   /**
@@ -257,11 +249,8 @@ export class LevelManager {
    * Get furthest level ever reached
    */
   getFurthestLevel(): number {
-    try {
-      return parseInt(localStorage.getItem('treasureQuest_furthestLevel') || '1')
-    } catch (e) {
-      return 1
-    }
+    // Always return 1 since we don't save progress
+    return 1
   }
   
   /**

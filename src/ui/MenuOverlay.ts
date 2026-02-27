@@ -1,6 +1,5 @@
 import { GameScene } from '../scenes/GameScene'
-import GameSettings from '../config/GameSettingsLoader'
-// import { addWalletUI, WalletUI } from './WalletUI'  // Commented out for play.fun
+import GameSettings from '../config/GameSettings'
 
 export class MenuOverlay {
   private scene: GameScene
@@ -17,11 +16,9 @@ export class MenuOverlay {
   private soundToggle: Phaser.GameObjects.Container | null = null
   private musicToggle: Phaser.GameObjects.Container | null = null
   private instructionsOverlay: Phaser.GameObjects.Container | null = null
-  // private walletUI: WalletUI | null = null  // Commented out for play.fun
   
   constructor(scene: GameScene) {
     this.scene = scene
-    // Constructor - menu overlay initialized
     this.loadSettings()
     this.create()
   }
@@ -31,8 +28,6 @@ export class MenuOverlay {
     const camera = this.scene.cameras.main
     const centerX = camera.width / 2
     const centerY = camera.height / 2
-    
-    // Menu layout calculated based on camera dimensions
     
     // Main container for entire menu - positioned at camera center
     this.container = this.scene.add.container(centerX, centerY)
@@ -53,8 +48,8 @@ export class MenuOverlay {
     // Main menu panel - positioned at center relative to container
     this.menuPanel = this.createMenuPanel()
     
-    // Title (moved up to accommodate larger panel)
-    const title = this.scene.add.text(0, -250, 'GAME MENU', {
+    // Title
+    const title = this.scene.add.text(0, -200, 'GAME MENU', {
       fontSize: '18px',
       fontFamily: '"Press Start 2P", system-ui',
       color: '#FFD700', // Keep gold for title
@@ -62,116 +57,67 @@ export class MenuOverlay {
     })
     title.setOrigin(0.5)
     
-    // Instructions button (moved up slightly)
+    // Instructions button
     const instructionsBtn = this.createButton(
-      0, -180, 
+      0, -140, 
       'VIEW INSTRUCTIONS',
       () => this.openInstructionsScene(),
       0x4a148c // Purple
     )
-    instructionsBtn.setName('instructionsButton')
     
     // Divider line
-    const divider1 = this.createDivider(-130)
+    const divider1 = this.createDivider(-100)
     
-    // Sound and music toggles - RE-ENABLED
-    this.soundToggle = this.createToggleSwitch(
-      'Sound\nEffects',
-      -80,
-      this.soundEffectsEnabled,
-      (enabled) => this.setSoundEffects(enabled)
-    )
-    this.soundToggle.setName('soundToggle')
-    
-    // Music toggle
-    this.musicToggle = this.createToggleSwitch(
-      'Music',
-      -30,
-      this.musicEnabled,
-      (enabled) => this.setMusic(enabled)
-    )
-    this.musicToggle.setName('musicToggle')
-    
-    // Divider line after toggles
-    const divider2 = this.createDivider(20)
-    
-    // Wallet button commented out for play.fun
-    // const walletBtn = this.createButton(
-    //   0, 70,
-    //   '💰 CONNECT WALLET',
-    //   () => this.handleWalletConnect(),
-    //   0x6366f1
+    // TEMPORARILY DISABLED - Sound and music toggles
+    // this.soundToggle = this.createToggleSwitch(
+    //   'Sound\nEffects',
+    //   -60,
+    //   this.soundEffectsEnabled,
+    //   (enabled) => this.setSoundEffects(enabled)
     // )
-    // walletBtn.setName('walletButton')
     
-    // BizarreBeasts info (moved down to avoid blocking toggles)
-    const bizarreInfo = this.createBizarreInfo(145)  // DGEN1 fixed position
+    // // Music toggle
+    // this.musicToggle = this.createToggleSwitch(
+    //   'Music',
+    //   -10,
+    //   this.musicEnabled,
+    //   (enabled) => this.setMusic(enabled)
+    // )
     
-    // Divider line before resume button
-    const divider3 = this.createDivider(200)  // DGEN1 fixed position
+    // Divider line (moved up from 30 to -30 to close the gap)
+    const divider2 = this.createDivider(-30)
     
-    // Resume button (positioned at bottom of menu)
-    // CHECK: Make sure we're not creating duplicate buttons
-    if (this.container.getByName('resumeButton')) {
-      console.error('⚠️ RESUME BUTTON ALREADY EXISTS!')
-    }
+    // BizarreBeasts info (moved up from 60 to 0)
+    const bizarreInfo = this.createBizarreInfo(0)
     
+    // Divider line (moved up from 170 to 110)
+    const divider3 = this.createDivider(110)
+    
+    // Resume button (moved up from 210 to 150)
     const resumeBtn = this.createButton(
-      0, 240,  // DGEN1 fixed position
+      0, 150,
       'RESUME GAME',
       () => this.close(),
       0x32CD32 // Keep green for resume
     )
     resumeBtn.setName('resumeButton')
-    console.log('📌 Created Resume button at Y=240')
-    
-    console.log('📍 FINAL Button Positions:', {
-      instructions: -180,
-      soundToggle: -80,
-      musicToggle: -30,
-      wallet: 70,
-      bizarreInfo: 145,
-      resumeButton: 240
-    })
     
     // Add all elements to container
     // IMPORTANT: Add background FIRST so it's behind everything
     // Then add menu panel and interactive elements on top
-    const elements = [
+    this.container.add([
       this.backgroundOverlay,  // Background first (lowest depth)
       this.menuPanel,          // Panel on top of background
       title,                   // Then all UI elements on top
       instructionsBtn,
       divider1,
-      this.soundToggle,  // RE-ENABLED
-      this.musicToggle,  // RE-ENABLED
-      divider2
-    ];
-    
-    // Log positions right before adding
-    console.log('🎯 PRE-ADD POSITIONS:', {
-      soundToggle: this.soundToggle ? this.soundToggle.y : 'null',
-      musicToggle: this.musicToggle ? this.musicToggle.y : 'null',
-      instructionsBtn: instructionsBtn ? instructionsBtn.y : 'null',
-      resumeBtn: resumeBtn ? resumeBtn.y : 'null'
-    });
-    
-    elements.push(
-      // walletBtn,  // Commented out for play.fun
+      // this.soundToggle,  // DISABLED
+      // this.musicToggle,  // DISABLED
+      divider2,
       bizarreInfo,
       divider3,
       resumeBtn
-    );
-    
-    this.container.add(elements)
-    
-    // Log positions right after adding
-    console.log('🎯 POST-ADD POSITIONS:')
-    this.container.list.forEach((child: any) => {
-      if (child instanceof Phaser.GameObjects.Container && child.name) {
-        console.log(`  ${child.name}: Y=${child.y}`)
-      }
-    })
+    ])
     
     // Move background to back to ensure it doesn't block menu interactions
     this.container.sendToBack(this.backgroundOverlay)
@@ -188,19 +134,10 @@ export class MenuOverlay {
     const panel = this.scene.add.graphics()
     
     // Draw purple panel with border - centered relative to container
-    // DGEN1 ONLY - Panel width for 720x720 square mode
-    const cameraWidth = this.scene.cameras.main.width;
-    const panelWidth = Math.min(400, cameraWidth - 40)
-    // Increased panel height to accommodate all elements (was 500, now 600)
-    const panelHeight = Math.min(600, this.scene.cameras.main.height - 40)
+    const panelWidth = Math.min(400, this.scene.cameras.main.width - 40)
+    const panelHeight = Math.min(500, this.scene.cameras.main.height - 40)
     const panelX = -panelWidth / 2
     const panelY = -panelHeight / 2
-    
-    console.log('🖼️ Panel dimensions:', {
-      width: panelWidth,
-      height: panelHeight,
-      position: `(${panelX}, ${panelY})`
-    })
     
     
     // Purple background with gold border
@@ -223,16 +160,12 @@ export class MenuOverlay {
     const container = this.scene.add.container(x, y)
     
     // Use a rectangle game object instead of graphics for better hit detection
-    // DGEN1 ONLY - Button width for 720x720 square mode
-    const cameraWidth = this.scene.cameras.main.width;
     const buttonWidth = 340
     const buttonHeight = 50
     
     // Create visual background rectangle
     const bgRect = this.scene.add.rectangle(0, 0, buttonWidth, buttonHeight, color, 0.8)
     bgRect.setStrokeStyle(2, 0xFFD700)
-    
-    // Rectangle bounds set correctly
     
     // Button text
     const btnText = this.scene.add.text(0, 0, text, {
@@ -266,28 +199,6 @@ export class MenuOverlay {
     // })
     
     bgRect.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      // For resume button, validate the click is actually within expected bounds
-      if (text === "RESUME GAME") {
-        const bounds = bgRect.getBounds()
-        const mainContainer = this.container
-        const relativeX = pointer.x - mainContainer.x
-        const relativeY = pointer.y - mainContainer.y
-        
-        // Expected bounds for resume button at Y=180
-        const expectedMinY = y - 25  // 155
-        const expectedMaxY = y + 25  // 205
-        const expectedMinX = -160    // Half button width
-        const expectedMaxX = 160
-        
-        const isValidClick = relativeY >= expectedMinY && relativeY <= expectedMaxY &&
-                           relativeX >= expectedMinX && relativeX <= expectedMaxX
-        
-        // ONLY process click if it's within expected bounds
-        if (!isValidClick) {
-          return  // Reject phantom click outside bounds
-        }
-      }
-      
       onClick()
     })
     
@@ -406,73 +317,49 @@ export class MenuOverlay {
   private createBizarreInfo(y: number): Phaser.GameObjects.Container {
     const container = this.scene.add.container(0, y)
     
-    // Create custom button with all info inside
-    const buttonContainer = this.scene.add.container(0, 0)
-    
-    // Match wallet button width - for dgen1 (720px), use 340px
-    const buttonWidth = 340  // Same as wallet button in dgen1
-    const buttonHeight = 70
-    
-    // Pink background rectangle
-    const bgRect = this.scene.add.rectangle(0, 0, buttonWidth, buttonHeight, 0xFF69B4, 0.9)  // Pink color
-    bgRect.setStrokeStyle(2, 0xFF1493)  // Darker pink border
-    bgRect.setInteractive({ useHandCursor: true })
-    
-    // Store expected position for bounds validation
-    bgRect.setData('expectedY', y)
-    bgRect.setData('buttonType', 'bizarreSwap')
-    
-    // BizarreBeasts title - YELLOW
-    const title = this.scene.add.text(0, -20, 'BizarreBeasts ($BB)', {
+    // Project name
+    const projectName = this.scene.add.text(0, 0, 'BizarreBeasts ($BB)', {
       fontSize: '12px',
       fontFamily: '"Press Start 2P", system-ui',
-      color: '#FFD700'  // Yellow text
+      color: '#FFD700' // Yellow text
     })
-    title.setOrigin(0.5)
+    projectName.setOrigin(0.5)
     
-    // Full CA address - YELLOW
-    const caText = this.scene.add.text(0, 0, 
+    // Contract address - now 20% smaller than before
+    const contractLabel = this.scene.add.text(0, 25, 'CA:', {
+      fontSize: '8px',  // Reduced by 20% from 10px
+      fontFamily: '"Press Start 2P", system-ui',
+      color: '#FFD700'
+    })
+    contractLabel.setOrigin(0.5)
+    
+    // Address with same font size as CA: label
+    const contractAddress = this.scene.add.text(0, 45, 
       '0x0520bf1d3cEE163407aDA79109333aB1599b4004', {
-      fontSize: '7px',
+      fontSize: '8px',  // Reduced by 20% from 10px
       fontFamily: '"Press Start 2P", system-ui',
-      color: '#FFD700',  // Yellow text
-      wordWrap: { width: buttonWidth - 20 }
+      color: '#FFD700',
+      wordWrap: { width: 380 }
     })
-    caText.setOrigin(0.5)
+    contractAddress.setOrigin(0.5)
     
-    // Click to swap text - BRIGHT YELLOW
-    const swapText = this.scene.add.text(0, 18, 'Click to swap on Uniswap', {
-      fontSize: '8px',
-      fontFamily: '"Press Start 2P", system-ui',
-      color: '#FFFF00'  // Bright yellow for call to action
-    })
-    swapText.setOrigin(0.5)
-    
-    // Add hover effect
-    bgRect.on('pointerover', () => {
-      bgRect.setFillStyle(0xFF1493, 0.95)  // Darker pink on hover
-      bgRect.setScale(1.02)
-    })
-    
-    bgRect.on('pointerout', () => {
-      bgRect.setFillStyle(0xFF69B4, 0.9)  // Back to original pink
-      bgRect.setScale(1)
-    })
-    
-    // Remove direct click handler - manual hit test will handle this
-    // The button click is now handled in manualHitTest() method to avoid phantom clicks
-    
-    buttonContainer.add([bgRect, title, caText, swapText])
-    
-    // Creator info below the button
-    const creatorText = this.scene.add.text(0, 50, 'Created by @bizarrebeast', {
-      fontSize: '9px',
+    // Creator info
+    const creatorText = this.scene.add.text(0, 70, 'Created by @bizarrebeast', {
+      fontSize: '10px',
       fontFamily: '"Press Start 2P", system-ui',
       color: '#FFD700'
     })
     creatorText.setOrigin(0.5)
     
-    container.add([buttonContainer, creatorText])
+    // Join info
+    const joinText = this.scene.add.text(0, 95, 'Join /bizarrebeasts', {
+      fontSize: '10px',
+      fontFamily: '"Press Start 2P", system-ui',
+      color: '#FFD700'
+    })
+    joinText.setOrigin(0.5)
+    
+    container.add([projectName, contractLabel, contractAddress, creatorText, joinText])
     
     return container
   }
@@ -517,7 +404,6 @@ export class MenuOverlay {
   }
   
   private setSoundEffects(enabled: boolean): void {
-    console.log(`🔊 Sound effects ${enabled ? 'enabled' : 'disabled'}`)
     this.soundEffectsEnabled = enabled
     this.scene.registry.set('sfxEnabled', enabled)
     this.saveSettings()
@@ -535,7 +421,6 @@ export class MenuOverlay {
   }
   
   private setMusic(enabled: boolean): void {
-    console.log(`🎵 Music ${enabled ? 'enabled' : 'disabled'}`)
     this.musicEnabled = enabled
     this.scene.registry.set('musicEnabled', enabled)
     this.saveSettings()
@@ -556,29 +441,23 @@ export class MenuOverlay {
   }
   
   private loadSettings(): void {
-    const saved = localStorage.getItem('audioSettings')
-    if (saved) {
-      const settings = JSON.parse(saved)
-      this.soundEffectsEnabled = settings.soundEffectsEnabled !== false
-      this.musicEnabled = settings.musicEnabled !== false
-    }
-    
-    // Apply loaded settings
+    // Settings loading disabled for sandbox compatibility
+    // Settings reset each session
+    this.soundEffectsEnabled = true
+    this.musicEnabled = true
+
+    // Apply default settings
     this.scene.registry.set('sfxEnabled', this.soundEffectsEnabled)
     this.scene.registry.set('musicEnabled', this.musicEnabled)
   }
   
   private saveSettings(): void {
-    const settings = {
-      soundEffectsEnabled: this.soundEffectsEnabled,
-      musicEnabled: this.musicEnabled
-    }
-    localStorage.setItem('audioSettings', JSON.stringify(settings))
+    // Settings saving disabled for sandbox compatibility
+    // Settings only persist for current session
   }
   
   open(): void {
     if (this.isOpen) {
-      console.log('⚠️ Menu already open, ignoring open() call')
       return
     }
     
@@ -589,6 +468,8 @@ export class MenuOverlay {
     if (this.soundEffectsEnabled) {
       this.scene.sound.play('menu-toggle', { volume: 0.5 })
     }
+    
+    // Debug visualization removed - buttons are working
     
     // Update SDK indicator
     const indicators = this.container.list.filter(obj => 
@@ -647,341 +528,38 @@ export class MenuOverlay {
     })
   }
   
-  private addDebugVisualization(): void {
-    // Remove any existing debug graphics
-    const existingDebug = this.container.getByName('debugGraphics')
-    if (existingDebug) {
-      existingDebug.destroy()
-    }
-    
-    // Create debug graphics
-    const debugGraphics = this.scene.add.graphics()
-    debugGraphics.setName('debugGraphics')
-    
-    // Log all container children with their positions
-    console.log('📦 MENU CONTAINER ELEMENTS:', {
-      containerPos: `(${this.container.x}, ${this.container.y})`,
-      childCount: this.container.list.length
-    })
-    
-    // Find specific elements
-    let actualMusicToggleY = null
-    let actualSoundToggleY = null
-    
-    this.container.list.forEach((child: any, index: number) => {
-      if (child instanceof Phaser.GameObjects.Container) {
-        const name = child.name || 'unnamed'
-        const isInteractive = child.input ? 'INTERACTIVE' : 'not-interactive'
-        console.log(`  [${index}] Container '${name}': Y=${child.y}, X=${child.x} [${isInteractive}]`)
-        
-        // Track actual positions of named elements
-        if (name === 'musicToggle') actualMusicToggleY = child.y
-        if (name === 'soundToggle') actualSoundToggleY = child.y
-        
-        // Log children of this container
-        if (child.list && child.list.length > 0) {
-          child.list.forEach((subChild: any, subIndex: number) => {
-            const subInteractive = subChild.input ? 'INTERACTIVE' : ''
-            if (subChild instanceof Phaser.GameObjects.Text && subChild.text) {
-              console.log(`    └─ Text: "${subChild.text.substring(0, 20)}..." at (${subChild.x}, ${subChild.y}) ${subInteractive}`)
-            } else if (subChild instanceof Phaser.GameObjects.Rectangle) {
-              console.log(`    └─ Rectangle at (${subChild.x}, ${subChild.y}) size: ${subChild.width}x${subChild.height} ${subInteractive}`)
-            }
-          })
-        }
-      } else if (child instanceof Phaser.GameObjects.Text) {
-        const isInteractive = child.input ? 'INTERACTIVE' : ''
-        console.log(`  [${index}] Text: "${child.text.substring(0, 30)}..." at Y=${child.y} ${isInteractive}`)
-      } else if (child instanceof Phaser.GameObjects.Graphics) {
-        const isInteractive = child.input ? 'INTERACTIVE' : ''
-        console.log(`  [${index}] Graphics/Divider at Y=${child.y} ${isInteractive}`)
-      } else if (child instanceof Phaser.GameObjects.Rectangle) {
-        const isInteractive = child.input ? 'INTERACTIVE!' : ''
-        console.log(`  [${index}] Rectangle at Y=${child.y} size: ${child.width}x${child.height} ${isInteractive}`)
-      }
-    })
-    
-    console.log('⚠️ VISUAL POSITIONS VS HIT ZONES:', {
-      musicToggle: {
-        visual: actualMusicToggleY,
-        hitZone: '-45 to -15',
-        mismatch: actualMusicToggleY !== -30
-      },
-      soundToggle: {
-        visual: actualSoundToggleY,
-        hitZone: '-95 to -65',
-        mismatch: actualSoundToggleY !== -80
-      }
-    })
-    
-    // Get actual element positions - use names for better reliability
-    const instructionsBtn = this.container.getByName('instructionsButton') as Phaser.GameObjects.Container
-    const soundToggle = this.container.getByName('soundToggle') as Phaser.GameObjects.Container  
-    const musicToggle = this.container.getByName('musicToggle') as Phaser.GameObjects.Container
-    const resumeBtn = this.container.getByName('resumeButton') as Phaser.GameObjects.Container
-    
-    console.log('🎯 FOUND ELEMENTS:', {
-      instructionsBtn: instructionsBtn ? `Y=${instructionsBtn.y}` : 'NOT FOUND',
-      soundToggle: soundToggle ? `Y=${soundToggle.y}` : 'NOT FOUND',
-      musicToggle: musicToggle ? `Y=${musicToggle.y}` : 'NOT FOUND',
-      resumeBtn: resumeBtn ? `Y=${resumeBtn.y}` : 'NOT FOUND'
-    })
-    
-    // Draw hit areas for all interactive elements based on ACTUAL positions
-    const isDgen1 = this.scene.registry.get('isDgen1') || window.location.port === '3001'
-    const buttonHalfWidth = this.scene.cameras.main.width <= 500 ? 160 : 170
-    
-    // Instructions button hit area (yellow) - at actual position
-    if (instructionsBtn) {
-      debugGraphics.lineStyle(2, 0xFFFF00, 0.8)
-      debugGraphics.strokeRect(-buttonHalfWidth, instructionsBtn.y - 25, buttonHalfWidth * 2, 50)
-    }
-    
-    // Sound toggle hit area (cyan) - at actual position
-    if (soundToggle) {
-      debugGraphics.lineStyle(2, 0x00FFFF, 0.8)
-      debugGraphics.strokeRect(80 - 30, soundToggle.y - 15, 60, 30)
-    }
-    
-    // Music toggle hit area (magenta) - at actual position
-    if (musicToggle) {
-      debugGraphics.lineStyle(2, 0xFF00FF, 0.8)
-      debugGraphics.strokeRect(80 - 30, musicToggle.y - 15, 60, 30)
-    }
-    
-    // Resume button hit area (green) - at actual position
-    if (resumeBtn) {
-      debugGraphics.lineStyle(2, 0x00FF00, 0.8)
-      debugGraphics.strokeRect(-buttonHalfWidth, resumeBtn.y - 25, buttonHalfWidth * 2, 50)
-    }
-    
-    // Add labels for each hit area
-    const labelStyle = {
-      fontSize: '10px',
-      fontFamily: 'monospace',
-      color: '#FFFFFF',
-      backgroundColor: '#000000',
-      padding: { x: 2, y: 1 }
-    }
-    
-    // Add labels at actual positions
-    if (instructionsBtn) {
-      const instrLabel = this.scene.add.text(0, instructionsBtn.y - 40, 'INSTR HIT', labelStyle)
-      instrLabel.setOrigin(0.5)
-      debugGraphics.add(instrLabel)
-    }
-    
-    if (soundToggle) {
-      const soundLabel = this.scene.add.text(80, soundToggle.y - 25, 'SOUND HIT', labelStyle)
-      soundLabel.setOrigin(0.5)
-      debugGraphics.add(soundLabel)
-    }
-    
-    if (musicToggle) {
-      const musicLabel = this.scene.add.text(80, musicToggle.y - 25, 'MUSIC HIT', labelStyle)
-      musicLabel.setOrigin(0.5)
-      debugGraphics.add(musicLabel)
-    }
-    
-    if (resumeBtn) {
-      const resumeLabel = this.scene.add.text(0, resumeBtn.y - 40, 'RESUME HIT', labelStyle)
-      resumeLabel.setOrigin(0.5)
-      debugGraphics.add(resumeLabel)
-    }
-    
-    // Add center crosshair to show container origin
-    debugGraphics.lineStyle(2, 0xFF0000, 1)
-    debugGraphics.moveTo(-10, 0)
-    debugGraphics.lineTo(10, 0)
-    debugGraphics.moveTo(0, -10)
-    debugGraphics.lineTo(0, 10)
-    
-    const centerLabel = this.scene.add.text(15, 15, 'Container (0,0)', labelStyle)
-    centerLabel.setOrigin(0)
-    
-    // Add debug graphics to container
-    this.container.add([debugGraphics, centerLabel])
-    
-    // Add pointer position tracker
-    const pointerText = this.scene.add.text(10, 10, '', {
-      fontSize: '12px',
-      fontFamily: 'monospace',
-      color: '#00FF00',
-      backgroundColor: '#000000',
-      padding: { x: 5, y: 5 }
-    })
-    pointerText.setScrollFactor(0)
-    pointerText.setDepth(10000)
-    pointerText.setName('pointerTracker')
-    
-    // Update pointer text on move
-    this.scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      const camera = this.scene.cameras.main
-      const containerX = camera.width / 2
-      const containerY = camera.height / 2
-      const relX = Math.round(pointer.x - containerX)
-      const relY = Math.round(pointer.y - containerY)
-      pointerText.setText(`Screen: (${Math.round(pointer.x)}, ${Math.round(pointer.y)})\nRelative: (${relX}, ${relY})\nContainer: (${containerX}, ${containerY})`)
-    })
-  }
-  
   private manualHitTest(pointer: Phaser.Input.Pointer): void {
-    // The container has scrollFactor(0,0), so it stays fixed to camera
-    // But the pointer position needs to be in screen space, not world space
-    const camera = this.scene.cameras.main
-    const isDgen1 = this.scene.registry.get('isDgen1') || window.location.port === '3001'
-    const cameraWidth = camera.width
-    const isRegularVersion = cameraWidth <= 500
+    // Get the main container's world position
+    const containerX = this.container.x
+    const containerY = this.container.y
     
-    // Container is always at center of camera view (since scrollFactor is 0)
-    const containerX = cameraWidth / 2
-    const containerY = camera.height / 2
-    
-    // Use screen coordinates for hit testing
-    const screenX = pointer.x
-    const screenY = pointer.y
-    
-    // Calculate relative position to container
-    const relativeX = screenX - containerX
-    const relativeY = screenY - containerY
-    
-    // Enhanced debugging for regular version
-    if (isRegularVersion) {
-      console.log('🎯 Regular Menu Hit Test:', {
-        pointerScreen: `(${Math.round(screenX)}, ${Math.round(screenY)})`,
-        containerCenter: `(${containerX}, ${containerY})`,
-        relativePos: `(${Math.round(relativeX)}, ${Math.round(relativeY)})`,
-        cameraSize: `${cameraWidth}x${camera.height}`,
-        cameraScroll: `(${Math.round(camera.scrollX)}, ${Math.round(camera.scrollY)})`,
-        version: 'DGEN1 (720x720)'
-      })
-    } else {
-      console.log('🎯 Manual hit test at:', {
-        pointerX: Math.round(screenX),
-        pointerY: Math.round(screenY),
-        containerPos: `(${containerX}, ${containerY})`
-      })
-    }
-    
-    // Check toggles FIRST before buttons to prioritize them
-    const buttonHalfWidth = 170;  // DGEN1 standard hit area for 720x720
-    
-    // Log what we're checking for hits
-    if (isRegularVersion) {
-      console.log('🎮 HIT TEST ZONES:', {
-        instructionsZone: `Y: ${-180-25} to ${-180+25}`,
-        soundToggleZone: `Y: ${-80-15} to ${-80+15}, X: ${80-30} to ${80+30}`,
-        musicToggleZone: `Y: ${-30-15} to ${-30+15}, X: ${80-30} to ${80+30}`,
-        resumeZone: `Y: ${180-25} to ${180+25}`,
-        clickedAt: `(${Math.round(relativeX)}, ${Math.round(relativeY)})`
-      })
-    }
-    
-    // Check sound toggle manually - use relative positions
-    const soundToggleX = 80  // Relative to container center
-    const soundToggleY = -80  // Relative to container center
-    const soundHit = Math.abs(relativeX - soundToggleX) < 30 && Math.abs(relativeY - soundToggleY) < 15
-    
-    if (isRegularVersion && soundHit) {
-      console.log('🔊 Sound Toggle HIT at:', {
-        toggleCenter: `(${soundToggleX}, ${soundToggleY})`,
-        relativeClick: `(${Math.round(relativeX)}, ${Math.round(relativeY)})`
-      })
-    }
-    
-    if (soundHit) {
-      console.log('✅ Sound toggle hit!')
-      this.setSoundEffects(!this.soundEffectsEnabled)
-      return  // Early return to prevent checking other buttons
-    }
-    
-    // Check music toggle manually - use relative positions
-    const musicToggleX = 80  // Relative to container center
-    const musicToggleY = -30  // Relative to container center
-    const musicHit = Math.abs(relativeX - musicToggleX) < 30 && Math.abs(relativeY - musicToggleY) < 15
-    
-    // Always log music toggle check details for debugging
-    if (isRegularVersion) {
-      const musicDistance = {
-        xDist: Math.abs(relativeX - musicToggleX),
-        yDist: Math.abs(relativeY - musicToggleY),
-        wouldHit: musicHit
-      }
-      if (Math.abs(relativeY - musicToggleY) < 50) { // If we're even close to music toggle Y
-        console.log('🎵 Music Toggle Check:', {
-          toggleCenter: `(${musicToggleX}, ${musicToggleY})`,
-          relativeClick: `(${Math.round(relativeX)}, ${Math.round(relativeY)})`,
-          distance: musicDistance,
-          hit: musicHit
-        })
-      }
-    }
-    
-    if (musicHit) {
-      console.log('✅ Music toggle hit!')
-      this.setMusic(!this.musicEnabled)
-      return  // Early return to prevent checking other buttons
-    }
-    
-    // Check resume button manually - use relative positions
-    const resumeBtnX = 0  // Relative to container center
-    const resumeBtnY = isDgen1 ? 240 : 180  // Relative to container center
-    const resumeHit = Math.abs(relativeX - resumeBtnX) < buttonHalfWidth && Math.abs(relativeY - resumeBtnY) < 25
-    
-    if (isRegularVersion && resumeHit) {
-      console.log('📍 Resume Button HIT at:', {
-        btnCenter: `(${resumeBtnX}, ${resumeBtnY})`,
-        relativeClick: `(${Math.round(relativeX)}, ${Math.round(relativeY)})`
-      })
-    }
-    
-    if (resumeHit) {
-      console.log('✅ Resume button hit!')
+    // Check resume button manually - button is at Y=150 relative to container
+    // Container is at Y=400, so button is at world Y=550
+    const resumeBtnX = containerX + 0
+    const resumeBtnY = containerY + 150  // Back to correct position
+    if (Math.abs(pointer.x - resumeBtnX) < 170 && Math.abs(pointer.y - resumeBtnY) < 25) {
       this.close()
-      return
     }
     
-    // Check instructions button manually - use relative positions
-    const instrBtnX = 0  // Relative to container center
-    const instrBtnY = -180  // Relative to container center
-    const instrHit = Math.abs(relativeX - instrBtnX) < buttonHalfWidth && Math.abs(relativeY - instrBtnY) < 25
-    
-    if (isRegularVersion && instrHit) {
-      console.log('📍 Instructions Button HIT at:', {
-        btnCenter: `(${instrBtnX}, ${instrBtnY})`,
-        relativeClick: `(${Math.round(relativeX)}, ${Math.round(relativeY)})`
-      })
-    }
-    
-    if (instrHit) {
-      console.log('✅ Instructions button hit!')
+    // Check instructions button manually  
+    const instrBtnX = containerX + 0
+    const instrBtnY = containerY + (-140)
+    if (Math.abs(pointer.x - instrBtnX) < 170 && Math.abs(pointer.y - instrBtnY) < 25) {
       this.openInstructionsScene()
-      return
     }
     
-    // Wallet button check commented out for play.fun
-    if (false) { // was: isDgen1
-      // const walletBtnX = 0
-      // const walletBtnY = 70
-      // if (Math.abs(relativeX - walletBtnX) < buttonHalfWidth && Math.abs(relativeY - walletBtnY) < 25) {
-      //   this.handleWalletConnect()
-      //   return
-      // }
-      
-      // Check BizarreBeasts swap button
-      const bbBtnX = 0  // Relative to container center
-      const bbBtnY = 145  // Relative to container center (with padding)
-      const bbButtonWidth = 170  // Half of 340px width (for dgen1's wider screen)
-      const bbButtonHeight = 35  // Half of 70px height
-      if (Math.abs(relativeX - bbBtnX) < bbButtonWidth && Math.abs(relativeY - bbBtnY) < bbButtonHeight) {
-        console.log('✅ BizarreBeasts button hit!')
-        // Token address for BIZARRE on Base chain
-        const tokenAddress = '0x0520bf1d3cEE163407aDA79109333aB1599b4004'
-        // Open Uniswap interface on Base chain for swapping ETH to BIZARRE
-        const swapUrl = `https://app.uniswap.org/swap?outputCurrency=${tokenAddress}&chain=base`
-        window.open(swapUrl, '_blank')
-        return  // Early return
-      }
+    // Check sound toggle manually (re-enabled)
+    const soundToggleX = containerX + 80
+    const soundToggleY = containerY + (-60)
+    if (Math.abs(pointer.x - soundToggleX) < 30 && Math.abs(pointer.y - soundToggleY) < 15) {
+      this.setSoundEffects(!this.soundEffectsEnabled)
+    }
+    
+    // Check music toggle manually (re-enabled)
+    const musicToggleX = containerX + 80
+    const musicToggleY = containerY + (-10)
+    if (Math.abs(pointer.x - musicToggleX) < 30 && Math.abs(pointer.y - musicToggleY) < 15) {
+      this.setMusic(!this.musicEnabled)
     }
   }
   
@@ -1135,15 +713,12 @@ export class MenuOverlay {
   
   close(): void {
     if (!this.isOpen) {
-      console.log('⚠️ Menu already closed, ignoring close() call')
       return
     }
     
-    console.log('🍔 Closing menu overlay')
-    
     // Play menu close sound if sound effects are enabled
     if (this.soundEffectsEnabled) {
-      this.scene.sound.play('menu-toggle', { volume: 0.5 })
+      this.scene.sound.play('menu-toggle', { volume: 0.3 })
     }
     
     // Set flag immediately
@@ -1313,7 +888,6 @@ export class MenuOverlay {
   }
   
   private openInstructionsScene(): void {
-    console.log('📖 Opening instructions scene')
     
     // Keep menu state but hide it
     this.container.setVisible(false)
@@ -1330,93 +904,8 @@ export class MenuOverlay {
     })
   }
   
-  // Wallet connect commented out for play.fun
-  private async handleWalletConnect(): Promise<void> { return; /* Original wallet code below:
-    console.log('💰 handleWalletConnect called')
-    
-    // Try to get platform from multiple sources
-    let platform = this.scene.registry.get('platform');
-    
-    // If not in scene registry, try game registry
-    if (!platform && this.scene.game) {
-      platform = this.scene.game.registry.get('platform');
-      console.log('📱 Platform found in game registry:', !!platform);
-    }
-    
-    // If still not found, try global window object
-    if (!platform && (window as any).platform) {
-      platform = (window as any).platform;
-      console.log('📱 Platform found in window.platform:', !!platform);
-    }
-    
-    // Also try window.gamePlatform
-    if (!platform && (window as any).gamePlatform) {
-      platform = (window as any).gamePlatform;
-      console.log('📱 Platform found in window.gamePlatform:', !!platform);
-    }
-    
-    if (!platform) {
-      console.error('❌ Platform not found in any registry');
-      console.log('🔍 Scene Registry keys:', Object.keys(this.scene.registry.list));
-      console.log('🔍 Game Registry keys:', Object.keys(this.scene.game?.registry.list || {}));
-      console.log('🔍 Window.platform exists?', !!(window as any).platform);
-      console.log('🔍 Full registry contents:', {
-        sceneRegistry: this.scene.registry.list,
-        gameRegistry: this.scene.game?.registry.list,
-        window: {
-          platform: (window as any).platform,
-          game: (window as any).game
-        }
-      });
-      
-      // Try to import and create platform directly as fallback
-      console.log('🔧 Attempting to create platform directly...');
-      import('../utils/GamePlatform').then(module => {
-        const fallbackPlatform = module.detectPlatform();
-        console.log('✅ Created fallback platform:', fallbackPlatform);
-        
-        // Store it for future use
-        this.scene.game.registry.set('platform', fallbackPlatform);
-        (window as any).platform = fallbackPlatform;
-        
-        // Try again with the new platform
-        this.handleWalletConnect();
-      }).catch(err => {
-        console.error('❌ Failed to create fallback platform:', err);
-      });
-      
-      return;
-    }
-    
-    console.log('📱 Platform object:', platform)
-    console.log('🔍 Platform constructor name:', platform?.constructor?.name)
-    console.log('🔍 Platform methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(platform || {})))
-    console.log('🔌 Platform.connectWallet exists?', typeof platform.connectWallet === 'function')
-    console.log('🔌 Platform.connectWallet value:', platform.connectWallet)
-    
-    // Update button text to show loading
-    const walletBtn = this.container.getByName('walletButton') as Phaser.GameObjects.Container;
-    if (walletBtn) {
-      const btnText = walletBtn.list[1] as Phaser.GameObjects.Text;
-      const originalText = btnText.text;
-      btnText.setText('CONNECTING...');
-      
-      try {
-        const address = await platform.connectWallet();
-        if (address) {
-          // Update button text to show connected status
-          btnText.setText('💰 CONNECTED');
-          console.log(`✅ Wallet connected: ${address}`);
-        } else {
-          btnText.setText(originalText);
-        }
-      } catch (error) {
-        console.error('Wallet connection failed:', error);
-        btnText.setText(originalText);
-      }
-    }
-  */ }  // End of commented-out handleWalletConnect
-
+  // Debug method removed - no longer needed
+  
   getIsOpen(): boolean {
     return this.isOpen
   }

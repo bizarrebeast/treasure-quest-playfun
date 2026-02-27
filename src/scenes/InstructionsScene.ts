@@ -1,4 +1,4 @@
-import GameSettings from "../config/GameSettingsLoader"
+import GameSettings from "../config/GameSettings"
 import { SharedAssetManager } from "../systems/SharedAssetManager"
 import { LoadingScreenGenerator } from "../systems/LoadingScreenGenerator"
 
@@ -39,7 +39,7 @@ export class InstructionsScene extends Phaser.Scene {
   }
 
   preload(): void {
-    // Load background image - same for both versions
+    // Load background image
     this.load.image('instructionsBg', 'https://lqy3lriiybxcejon.public.blob.vercel-storage.com/d281be5d-2111-4a73-afb0-19b2a18c80a9/Treasure%20Quest%20BG%205-pVHhUmXIAvnZT4aFVRFgYvljKibVS0.png?qco1')
     
     // Load game sprites for visual references
@@ -181,10 +181,10 @@ export class InstructionsScene extends Phaser.Scene {
       {
         title: 'MOVEMENT & CONTROLS',
         items: [
-          { sprite: 'playerIdleEye1', title: 'Move', description: 'Use the pink crystal D-pad to move left and right', spriteSize: { width: 38, height: 58 }},
-          { sprite: 'playerJumpRightFoot', title: 'Jump', description: 'Tap the pink crystal button to jump', spriteSize: { width: 38, height: 58 }},
-          { sprite: 'playerClimbInstructions', title: 'Climb', description: 'Use the D-pad UP/DOWN to climb ladders', spriteSize: { width: 38, height: 58 }},
-          { sprite: 'playerThrow', title: 'Throw', description: 'Tap the yellow crystal button to throw crystal balls', spriteSize: { width: 38, height: 58 }}
+          { sprite: 'playerIdleEye1', title: 'Move', description: 'Use WASD/arrow keys or pink crystal D-pad to move', spriteSize: { width: 38, height: 58 }},
+          { sprite: 'playerJumpRightFoot', title: 'Jump', description: 'Press SPACE or E to jump (or use pink crystal button)', spriteSize: { width: 38, height: 58 }},
+          { sprite: 'playerClimbInstructions', title: 'Climb', description: 'Use UP/DOWN arrows or D-pad to climb ladders', spriteSize: { width: 38, height: 58 }},
+          { sprite: 'playerThrow', title: 'Throw', description: 'Press Q, V, or M to throw crystal balls (use yellow crystal button)', spriteSize: { width: 38, height: 58 }}
         ]
       },
       {
@@ -226,7 +226,7 @@ export class InstructionsScene extends Phaser.Scene {
           { sprite: 'floor-tile-1', title: 'Platforms', description: 'Solid ground you can walk and jump on', spriteSize: { width: 38, height: 38 }},
           { sprite: 'pink-floor-spike-tile', title: 'Floor Spikes', description: 'Sharp floor hazards that damage you', spriteSize: { width: 38, height: 38 }},
           { sprite: 'yellow-ceiling-spike-tile', title: 'Ceiling Spikes', description: 'Sharp ceiling hazards that damage you', spriteSize: { width: 38, height: 38 }},
-          { sprite: 'doorClosed', title: 'Exit Door', description: 'Use D-pad UP at the door to complete the level', spriteSize: { width: 36, height: 48 }}
+          { sprite: 'doorClosed', title: 'Exit Door', description: 'Press UP at the door to complete the level', spriteSize: { width: 36, height: 48 }}
         ]
       }
     ]

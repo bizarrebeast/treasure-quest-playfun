@@ -1,23 +1,20 @@
 /**
- * Game Settings for Treasure Quest - Play.fun Version
- * 720x720 square format (tile-based game requires fixed resolution)
- * Phaser.Scale.FIT handles scaling to viewport
+ * Game Settings for Bizarre Underground
+ * Centralized configuration for all tunable game parameters
  */
 
 export const GameSettings = {
-  buildType: 'playfun',
-  debug: false,
+  debug: false,  // Debug mode disabled for production
 
   canvas: {
-    width: 720,
-    height: 720,
+    width: 480,  // Portrait mode - 2:3 aspect ratio for Remix Native App
+    height: 720, // Exact 2:3 ratio (480:720 = 2:3)
   },
 
   game: {
     tileSize: 32,
-    floorHeight: 8,
-    floorWidth: 22,
-    floorSpacing: 140,
+    floorHeight: 12, // tiles per floor (visible area)
+    floorWidth: 24,  // tiles wide - much wider for more interesting levels
     gravity: 800,
     playerSpeed: 160,
     climbSpeed: 120,
@@ -29,28 +26,6 @@ export const GameSettings = {
     coinCollect: 50,
     floorBonus: 500,
   },
-
-  hud: {
-    topBarHeight: 80,
-    bottomBarHeight: 80,
-    gameAreaHeight: 560,
-  },
-
-  touchControls: {
-    dpadPosition: { x: 100, y: 640 },
-    dpadSize: 60,
-    jumpPosition: { x: 620, y: 640 },
-    jumpSize: 60,
-  },
-
-  platform: {
-    isDgen1: false,
-    isPlayFun: true,
-    hasLocalStorage: true,
-    hasWallet: false,
-    autoSave: false,
-    saveInterval: 30000,
-  }
 }
 
 export default GameSettings
