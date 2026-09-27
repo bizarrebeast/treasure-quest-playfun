@@ -18,6 +18,7 @@ import { TouchControls } from "../objects/TouchControls"
 import { LevelManager } from "../systems/LevelManager"
 import { EnemySpawningSystem, EnemyType } from "../systems/EnemySpawningSystem"
 import { Door } from "../objects/Door"
+import { resetRegistryForNewRun } from "../utils/RunReset"
 import { AssetPool, AssetConfig } from "../systems/AssetPool"
 import { GemShapeGenerator, GemStyle, GemCut } from "../utils/GemShapes"
 import { MenuOverlay } from "../ui/MenuOverlay"
@@ -72,6 +73,7 @@ export class GameScene extends Phaser.Scene {
   private highestFloorGenerated: number = 5 // Track how many floors we've generated
   public touchControls!: TouchControls
   private justKilledCat: boolean = false
+  private gameOverReported: boolean = false
   private comboCount: number = 0
   private comboTimer: Phaser.Time.TimerEvent | null = null
   private comboText!: Phaser.GameObjects.Text
@@ -162,94 +164,6 @@ export class GameScene extends Phaser.Scene {
   private instantLoadingScreen?: Phaser.GameObjects.Image
   private reopenMenuAfterInit: boolean = false
   // private debugKillTracker?: Phaser.GameObjects.Text // Debug tracker disabled
-
-  init(data?: any): void {
-    // Store flag to reopen menu after scene is ready
-    this.reopenMenuAfterInit = data?.reopenMenu || false
-
-    // Get gameStats from registry (persists across scene restarts and deaths)
-    this.gameStats = this.game.registry.get('gameStats')
-
-    // Only initialize gameStats if it doesn't exist (first time playing)
-    // Do NOT reset on death (playerLives === 0) - we want to keep tracking!
-    if (!this.gameStats) {
-      console.log('🎮 Initializing fresh gameStats tracking (first time)')
-      this.gameStats = {
-        treasureChestsOpened: 0,
-        enemyKills: {
-          caterpillar: 0,
-          rollz: 0,
-          chomper: 0,
-          snail: 0,
-          bouncer: 0,
-          stalker: 0,
-          rex: 0,
-          blu: 0
-        },
-        totalEnemiesDefeated: 0,
-        highestFloor: 0,
-        livesLost: 0
-      }
-      // Save to registry for persistence
-      this.game.registry.set('gameStats', this.gameStats)
-    } else {
-      console.log('📊 Continuing with existing gameStats:', this.gameStats)
-    }
-
-    // Check if this is a continue after death
-    const isDeathRetry = this.game.registry.get('isDeathRetry') || false
-    const playerLives = this.game.registry.get('playerLives') || 0
-
-    // Set flag to show loading screen ONLY if this is NOT a replay or death retry
-    const isReplay = this.game.registry.get('isReplay') || false
-    const skipLoadingScreen = isReplay || (isDeathRetry && playerLives > 0)
-    this.showLoadingScreen = !skipLoadingScreen
-
-    console.log(`🎬 Loading screen decision: isReplay=${isReplay}, isDeathRetry=${isDeathRetry}, skip=${skipLoadingScreen}, SHOW=${this.showLoadingScreen}`)
-
-    // Set dark purple background to match instructions background color
-    // This minimizes the visual jump during the brief preload phase
-    this.cameras.main.setBackgroundColor('#1a0033')
-
-    // Initialize managers that need scene references
-    this.levelManager = new LevelManager()
-    this.backgroundManager = new BackgroundManager(this)
-    
-    // Check if we have a pre-generated loading screen
-    const currentLevel = this.registry.get('currentLevel') || 1
-    const loadingScreenKey = `loading-screen-${currentLevel >= 51 ? 51 : currentLevel >= 41 ? 41 : currentLevel >= 31 ? 31 : currentLevel >= 21 ? 21 : currentLevel >= 11 ? 11 : 1}`
-    
-    if (this.textures.exists(loadingScreenKey)) {
-      // Use pre-generated loading screen for INSTANT display
-      console.log(`⚡ Using pre-generated loading screen: ${loadingScreenKey}`)
-      this.instantLoadingScreen = this.add.image(
-        this.cameras.main.centerX,
-        this.cameras.main.centerY,
-        loadingScreenKey
-      )
-      this.instantLoadingScreen.setOrigin(0.5)
-      this.instantLoadingScreen.setDepth(100000)
-    } else {
-      // Fallback to creating text (slower but still works)
-      console.log('⚠️ No pre-generated loading screen, creating text')
-      const centerX = GameSettings.canvas.width / 2
-      const centerY = GameSettings.canvas.height / 2
-      
-      // Single "LOADING..." text centered
-      const loading = this.add.text(centerX, centerY, 'LOADING...', {
-        fontSize: '24px',
-        fontFamily: 'Arial, sans-serif',
-        color: '#FFFFFF',
-        fontStyle: 'bold'
-      })
-      loading.setOrigin(0.5)
-      loading.setDepth(10000)
-      
-      this.preloadLoadingText = loading
-    }
-    
-    console.log('🎮 GameScene.init() - Loading screen displayed')
-  }
 
   preload(): void {
     console.log('🔄 GameScene.preload() started at', performance.now())
@@ -1083,6 +997,7 @@ export class GameScene extends Phaser.Scene {
     this.isLevelComplete = false
     this.currentFloor = 0
     this.highestFloorGenerated = 5
+    this.resetPerLevelState()
     
     // Use game registry to persist lives and coins across scene restarts
     const registry = this.game.registry
@@ -1170,6 +1085,34 @@ export class GameScene extends Phaser.Scene {
     
     // Calculate accumulated diamonds (for display)
     this.accumulatedDiamonds = registry.get('accumulatedDiamonds') || 0
+  }
+
+  // Phaser reuses this scene instance on scene.restart() (every death, level and
+  // replay) but destroys its timers and game objects. Any field that is only
+  // cleared by a timer callback, or that points at a destroyed object, must be
+  // reset here or it leaks into the next level (e.g. permanent invincibility).
+  private resetPerLevelState(): void {
+    this.invincibilityActive = false
+    this.invincibilityTimer = null
+    this.invincibilityTimeRemaining = 0
+    this.invincibilityTimerSparkleTimer = null
+    this.invincibilityWarningPlayed = false
+    this.playerGoldenAura = null
+    this.playerParticleTrail = []
+    this.playerSpikeCollider = null
+
+    this.comboCount = 0
+    this.comboTimer = null
+    this.justKilledCat = false
+
+    this.levelHasCursedOrb = false
+    this.levelHasCursedTealOrb = false
+    this.cursedOrbs = []
+    this.cursedTealOrbs = []
+    this.darknessOverlay = undefined as any
+    this.crystalBallProjectiles = []
+    this.door = null
+    this.gameOverReported = false
   }
 
   private async initializeGameAfterSplash(): Promise<void> {
@@ -1275,7 +1218,7 @@ export class GameScene extends Phaser.Scene {
     this.treasureChests = []
     // this.flashPowerUps = [] // Commented out for later use
     this.crystalBalls = []
-    this.freeLifs = []
+    this.freeLifes = []
     this.invincibilityPendants = []
     this.levelHasCrystalBall = false
     
@@ -1594,7 +1537,9 @@ export class GameScene extends Phaser.Scene {
     
     // Set world bounds to accommodate wider floors
     const worldWidth = GameSettings.game.floorWidth * GameSettings.game.tileSize
-    this.physics.world.setBounds(0, -10000, worldWidth, 20000)
+    // Endless (Beast Mode) climbs indefinitely; -10000 capped it at ~floor 62
+    const worldTop = this.levelManager.getLevelConfig(this.levelManager.getCurrentLevel()).isEndless ? -500000 : -10000
+    this.physics.world.setBounds(0, worldTop, worldWidth, 10000 - worldTop)
     
     // Set up camera to follow player
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1)
@@ -2499,6 +2444,9 @@ export class GameScene extends Phaser.Scene {
     
     // Store floor layouts for cat creation
     this.floorLayouts = floorLayouts
+    // generateNextFloors (endless only) must continue above the floors built here,
+    // not rebuild floors 6+ on top of them
+    this.highestFloorGenerated = numFloors - 1
     
     // Create ladders ensuring solid ground above and below
     // Allow ladders TO the door floor, but not FROM or past it
@@ -6633,7 +6581,7 @@ export class GameScene extends Phaser.Scene {
     }
     
     // Spawn free lives
-    for (let i = 0; i < contents.freeLifs; i++) {
+    for (let i = 0; i < contents.freeLifes; i++) {
       if (positionIndex >= spawnPositions.length) break
       
       const pos = spawnPositions[positionIndex++]
@@ -7001,7 +6949,6 @@ export class GameScene extends Phaser.Scene {
           )
           // Green cats already get full floor bounds by default
           this.cats.add(cat)
-          enemiesCreated++
         } else if (layout.gapStart > 3) {
           // Place on left section if big enough
           // Position enemy ON TOP of floor tiles, like the player
@@ -7024,7 +6971,6 @@ export class GameScene extends Phaser.Scene {
             }
           }
           this.cats.add(cat)
-          enemiesCreated++
         }
       }
       
@@ -8662,7 +8608,10 @@ export class GameScene extends Phaser.Scene {
     ).setOrigin(0.5).setDepth(202).setScrollFactor(0)
     
     // Start over handler - report score to Play.fun then restart
+    // Once per run: a double tap used to add the score to Play.fun twice
     restartButton.on('pointerdown', () => {
+      if (this.gameOverReported) return
+      this.gameOverReported = true
       reportGameOver(finalScore)
       this.restartGame()
     })
@@ -8680,6 +8629,8 @@ export class GameScene extends Phaser.Scene {
     
     // Keyboard support
     this.input.keyboard!.on('keydown-R', () => {
+      if (this.gameOverReported) return
+      this.gameOverReported = true
       reportGameOver(finalScore)
       this.restartGame()
     })
@@ -9024,35 +8975,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private restartGame(): void {
-    // Reset game state for new game
-    this.game.registry.set('isDeathRetry', false)
-    this.game.registry.set('isLevelProgression', false)
-    this.game.registry.set('currentLevel', 1)  // Always start at level 1
-    this.game.registry.set('playerLives', 3) // Use correct key
-    this.game.registry.set('totalCoins', 0) // Use correct key
-    this.game.registry.set('livesEarned', 0) // Reset lives earned counter
-    this.game.registry.set('accumulatedScore', 0)
-
-    // CRITICAL: Reset gameStats for new game (START OVER button)
-    this.gameStats = {
-      treasureChestsOpened: 0,
-      enemyKills: {
-        caterpillar: 0,
-        rollz: 0,
-        chomper: 0,
-        snail: 0,
-        bouncer: 0,
-        stalker: 0,
-        rex: 0,
-        blu: 0
-      },
-      totalEnemiesDefeated: 0,
-      highestFloor: 0,
-      livesLost: 0
-    }
-    // Save reset gameStats to registry
-    this.game.registry.set('gameStats', this.gameStats)
-    console.log('🎮 Reset gameStats for new game')
+    resetRegistryForNewRun(this.game.registry)
+    this.gameStats = undefined as any // init() rebuilds it from the cleared registry key
+    console.log('🎮 Reset run state for new game')
 
     // Restart the scene
     this.scene.restart()
